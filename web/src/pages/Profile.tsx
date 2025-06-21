@@ -3,7 +3,6 @@ import { Upload, User, FileText, Award, Settings, Save } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
-import Header from '../components/Header';
 
 const Profile: React.FC = () => {
   const { user } = useAuth();
@@ -175,10 +174,8 @@ const Profile: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header userType="seeker" isAuthenticated={true} />
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Sidebar */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 h-fit">

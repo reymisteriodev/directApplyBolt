@@ -3,12 +3,18 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import Layout from './components/Layout';
 
 // Pages
 import LandingPage from './pages/LandingPage';
 import CompanyLandingPage from './pages/CompanyLandingPage';
 import JobSeekerLogin from './pages/JobSeekerLogin';
 import CompanyLogin from './pages/CompanyLogin';
+import CVWelcomeGate from './pages/CVWelcomeGate';
+import CVNewGate from './pages/CVNewGate';
+import CVBuilder from './pages/CVBuilder';
+import CVAnalysis from './pages/CVAnalysis';
+import CVDashboard from './pages/CVDashboard';
 import JobSeekerDashboard from './pages/JobSeekerDashboard';
 import JobMatchingDashboard from './pages/JobMatchingDashboard';
 import CompanyDashboard from './pages/CompanyDashboard';
@@ -16,11 +22,6 @@ import Profile from './pages/Profile';
 import InterviewCoach from './pages/InterviewCoach';
 import ApplicationTracker from './pages/ApplicationTracker';
 import ApplicantManagement from './pages/ApplicantManagement';
-import CVBuilder from './pages/CVBuilder';
-import CVAnalysis from './pages/CVAnalysis';
-import CVWelcomeGate from './pages/CVWelcomeGate';
-import CVDashboard from './pages/CVDashboard';
-import CVNewGate from './pages/CVNewGate';
 import CommunityForum from './pages/CommunityForum';
 
 function App() {
@@ -28,7 +29,7 @@ function App() {
     <ThemeProvider>
       <AuthProvider>
         <Router>
-          <div className="min-h-screen bg-gray-50">
+          <Layout>
             <Routes>
               <Route path="/" element={<LandingPage />} />
               <Route path="/companies" element={<CompanyLandingPage />} />
@@ -49,7 +50,7 @@ function App() {
               <Route path="/company/applicants/:jobId" element={<ApplicantManagement />} />
             </Routes>
             <Toaster position="top-right" />
-          </div>
+          </Layout>
         </Router>
       </AuthProvider>
     </ThemeProvider>

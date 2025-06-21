@@ -10,6 +10,8 @@ interface AuthContextType {
   signOut: () => Promise<void>
   hasCompletedCV: boolean
   setHasCompletedCV: (completed: boolean) => void
+  hasSeenWelcome: boolean
+  setHasSeenWelcome: (seen: boolean) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -26,6 +28,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [hasCompletedCV, setHasCompletedCV] = useState(false)
+  const [hasSeenWelcome, setHasSeenWelcome] = useState(false)
 
   useEffect(() => {
     // Get initial session
@@ -100,6 +103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Sign out error:', error)
       }
       setHasCompletedCV(false)
+      setHasSeenWelcome(false)
     } catch (error) {
       console.error('Sign out error:', error)
     } finally {
@@ -114,7 +118,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signOut,
     hasCompletedCV,
-    setHasCompletedCV
+    setHasCompletedCV,
+    hasSeenWelcome,
+    setHasSeenWelcome
   }
 
   return (

@@ -23,7 +23,6 @@ import {
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
-import Header from '../components/Header';
 
 interface Post {
   id: string;
@@ -590,9 +589,8 @@ const CommunityForum: React.FC = () => {
   // Show authentication required message if not logged in
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <Header userType="seeker" isAuthenticated={false} />
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="min-h-screen bg-gray-50 p-8">
+        <div className="max-w-4xl mx-auto">
           <div className="text-center py-12">
             <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">Sign in to access the Community Forum</h3>
@@ -610,10 +608,8 @@ const CommunityForum: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header userType="seeker" isAuthenticated={true} />
-      
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">

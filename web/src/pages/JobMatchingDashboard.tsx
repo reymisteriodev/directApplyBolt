@@ -22,7 +22,6 @@ import {
   Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Header from '../components/Header';
 
 interface Job {
   id: string;
@@ -275,10 +274,8 @@ const JobMatchingDashboard: React.FC = () => {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header userType="seeker" isAuthenticated={true} />
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Job Feed - Left Column */}
           <div className="lg:col-span-2 space-y-6">
