@@ -11,6 +11,7 @@ const JobSeekerLogin: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [justRegistered, setJustRegistered] = useState(false);
   const [rateLimitInfo, setRateLimitInfo] = useState<{ isRateLimited: boolean; waitTime: number; message: string }>({
     isRateLimited: false,
     waitTime: 0,
@@ -27,10 +28,14 @@ const JobSeekerLogin: React.FC = () => {
   const { signUp, signIn, user, hasCompletedCV, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Handle redirect after authentication is complete
+  // Handle redirect after authentication is complete - ONLY for login, not registration
   useEffect(() => {
-    // Only redirect if we have a user and auth is not loading
-    if (user && !authLoading && isLogin) {
+    // Only redirect if:
+    // 1. We have a user
+    // 2. Auth is not loading
+    // 3. This is a login attempt (not just registered)
+    // 4. User is in login mode
+    if (user && !authLoading && !justRegistered && isLogin) {
       // For login users, check if they have completed CV
       if (hasCompletedCV) {
         // User has CV, go to dashboard
@@ -40,12 +45,13 @@ const JobSeekerLogin: React.FC = () => {
         navigate('/seeker/cv-welcome');
       }
     }
-  }, [user, authLoading, navigate, isLogin, hasCompletedCV]);
+  }, [user, authLoading, navigate, isLogin, hasCompletedCV, justRegistered]);
 
   // Clear login error when switching between login/signup or when typing
   useEffect(() => {
     setLoginError('');
     setRateLimitInfo({ isRateLimited: false, waitTime: 0, message: '' });
+    setJustRegistered(false); // Reset registration flag when switching modes
   }, [isLogin]);
 
   // Rate limit countdown effect
@@ -119,7 +125,7 @@ const JobSeekerLogin: React.FC = () => {
         toast.success('Welcome back!');
         // Redirect will be handled by useEffect based on hasCompletedCV
       } else {
-        // Handle registration - redirect to sign-in page after successful registration
+        // Handle registration - stay on sign-in page after successful registration
         if (formData.password !== formData.confirmPassword) {
           toast.error('Passwords do not match');
           return;
@@ -157,7 +163,8 @@ const JobSeekerLogin: React.FC = () => {
           return;
         }
         
-        // After successful registration, switch to login mode
+        // After successful registration, switch to login mode and prevent auto-redirect
+        setJustRegistered(true);
         toast.success('Account created successfully! Please sign in to continue.');
         setIsLogin(true);
         // Clear form data except email
@@ -237,6 +244,20 @@ const JobSeekerLogin: React.FC = () => {
               }
             </p>
           </div>
+
+          {/* Success message for just registered users */}
+          {justRegistered && isLogin && (
+            <motion.div 
+              className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <p className="text-sm text-green-800 font-medium">
+                ✅ Account created successfully! Please sign in to continue.
+              </p>
+            </motion.div>
+          )}
 
           {/* Form */}
           <div className="bg-white py-8 px-6 shadow-xl rounded-xl border border-gray-100">
