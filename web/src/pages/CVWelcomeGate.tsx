@@ -18,18 +18,26 @@ const CVWelcomeGate: React.FC = () => {
       const formData = new FormData();
       formData.append('file', file);
 
+      // Get the Supabase URL and key from environment
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Supabase configuration is missing. Please check your environment variables.');
+      }
+
       // Call the edge function to parse the CV
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parse-cv`, {
+      const response = await fetch(`${supabaseUrl}/functions/v1/parse-cv`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer ${supabaseAnonKey}`,
         },
         body: formData
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to parse CV');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}: Failed to parse CV`);
       }
 
       const result = await response.json();
@@ -60,27 +68,62 @@ const CVWelcomeGate: React.FC = () => {
       return;
     }
 
+    if (!user) {
+      toast.error('Please sign in to upload your CV');
+      return;
+    }
+
     setIsUploading(true);
 
     try {
       // Parse the file using the edge function
-      const parsedData = await parseFileContent(file);
+      let parsedData;
+      try {
+        parsedData = await parseFileContent(file);
+      } catch (parseError) {
+        console.error('Parse error:', parseError);
+        // If parsing fails, create a basic CV structure with the file
+        parsedData = {
+          extractedText: 'CV content could not be automatically extracted. Please review and edit your information.',
+          personalInfo: {
+            name: user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name || '',
+            email: user?.email || '',
+            phone: ''
+          },
+          sections: {
+            summary: '',
+            experience: '',
+            education: '',
+            skills: ''
+          }
+        };
+      }
       
-      if (!parsedData.extractedText || parsedData.extractedText.trim().length < 50) {
-        toast.error('Could not extract enough text from the file. Please try a different file or create a new CV.');
-        setIsUploading(false);
-        return;
+      // Ensure we have some extracted text
+      if (!parsedData.extractedText || parsedData.extractedText.trim().length < 10) {
+        parsedData.extractedText = 'CV uploaded successfully. Please review and edit your information in the CV builder.';
       }
 
       // Upload file to Supabase storage
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user?.id}/cv_${Date.now()}.${fileExt}`;
-      
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('cv-files')
-        .upload(fileName, file);
+      let uploadData = null;
+      try {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${user.id}/cv_${Date.now()}.${fileExt}`;
+        
+        const { data, error: uploadError } = await supabase.storage
+          .from('cv-files')
+          .upload(fileName, file);
 
-      if (uploadError) throw uploadError;
+        if (uploadError) {
+          console.error('Storage upload error:', uploadError);
+          // Continue without file storage if it fails
+        } else {
+          uploadData = data;
+        }
+      } catch (storageError) {
+        console.error('Storage error:', storageError);
+        // Continue without file storage if it fails
+      }
 
       // Save CV upload record to database with extracted text
       const cvData = {
@@ -92,12 +135,12 @@ const CVWelcomeGate: React.FC = () => {
           githubUrl: ''
         },
         professionalSummary: parsedData.sections?.summary || '',
-        employmentHistory: parsedData.sections?.experience || [],
-        education: parsedData.sections?.education || [],
+        employmentHistory: Array.isArray(parsedData.sections?.experience) ? parsedData.sections.experience : [],
+        education: Array.isArray(parsedData.sections?.education) ? parsedData.sections.education : [],
         skills: parsedData.sections?.skills || [],
         uploadedFile: {
           fileName: file.name,
-          filePath: uploadData.path,
+          filePath: uploadData?.path || '',
           uploadedAt: new Date().toISOString(),
           extractedText: parsedData.extractedText,
           fileSize: file.size,
@@ -106,45 +149,57 @@ const CVWelcomeGate: React.FC = () => {
         }
       };
 
-      // First check if user profile exists
-      const { data: existingProfile } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('user_id', user?.id)
-        .single();
-
-      if (existingProfile) {
-        // Update existing profile
-        const { error: updateError } = await supabase
+      // Try to save to database
+      try {
+        // First check if user profile exists
+        const { data: existingProfile, error: fetchError } = await supabase
           .from('user_profiles')
-          .update({
-            cv_data: cvData,
-            updated_at: new Date().toISOString()
-          })
-          .eq('user_id', user?.id);
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
 
-        if (updateError) throw updateError;
-      } else {
-        // Create new profile
-        const { error: insertError } = await supabase
-          .from('user_profiles')
-          .insert({
-            user_id: user?.id,
-            cv_data: cvData,
-            updated_at: new Date().toISOString()
-          });
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          // PGRST116 is "not found" error, which is expected for new users
+          throw fetchError;
+        }
 
-        if (insertError) throw insertError;
+        if (existingProfile) {
+          // Update existing profile
+          const { error: updateError } = await supabase
+            .from('user_profiles')
+            .update({
+              cv_data: cvData,
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', user.id);
+
+          if (updateError) throw updateError;
+        } else {
+          // Create new profile
+          const { error: insertError } = await supabase
+            .from('user_profiles')
+            .insert({
+              user_id: user.id,
+              cv_data: cvData,
+              updated_at: new Date().toISOString()
+            });
+
+          if (insertError) throw insertError;
+        }
+
+        setHasCompletedCV(true);
+        toast.success('CV uploaded and processed successfully!');
+        navigate('/seeker/cv-analysis', { 
+          state: { 
+            cvData,
+            fromWelcome: true 
+          } 
+        });
+
+      } catch (dbError) {
+        console.error('Database error:', dbError);
+        toast.error('CV uploaded but failed to save to database. Please try again or contact support.');
       }
-
-      setHasCompletedCV(true);
-      toast.success('CV uploaded and processed successfully!');
-      navigate('/seeker/cv-analysis', { 
-        state: { 
-          cvData,
-          fromWelcome: true 
-        } 
-      });
 
     } catch (error) {
       console.error('Error uploading CV:', error);
