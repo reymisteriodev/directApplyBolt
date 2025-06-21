@@ -84,12 +84,15 @@ const CVWelcomeGate: React.FC = () => {
     setIsUploading(true);
 
     try {
+      console.log('📤 Starting CV upload process...');
+      
       // Parse the file using the edge function
       let parsedData;
       try {
         parsedData = await parseFileContent(file);
+        console.log('✅ File parsed successfully:', parsedData);
       } catch (parseError) {
-        console.error('Parse error:', parseError);
+        console.error('⚠️ Parse error:', parseError);
         // If parsing fails, create a basic CV structure with the file
         parsedData = {
           extractedText: 'CV content could not be automatically extracted. Please review and edit your information.',
@@ -123,17 +126,18 @@ const CVWelcomeGate: React.FC = () => {
           .upload(fileName, file);
 
         if (uploadError) {
-          console.error('Storage upload error:', uploadError);
+          console.error('⚠️ Storage upload error:', uploadError);
           // Continue without file storage if it fails
         } else {
           uploadData = data;
+          console.log('✅ File uploaded to storage:', uploadData);
         }
       } catch (storageError) {
-        console.error('Storage error:', storageError);
+        console.error('⚠️ Storage error:', storageError);
         // Continue without file storage if it fails
       }
 
-      // Save CV upload record to database with extracted text
+      // Create comprehensive CV data structure
       const cvData = {
         personalInfo: {
           fullName: parsedData.personalInfo?.name || user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name || '',
@@ -157,7 +161,9 @@ const CVWelcomeGate: React.FC = () => {
         }
       };
 
-      // Try to save to database
+      console.log('💾 Saving CV data to database...', cvData);
+
+      // Try to save to database with better error handling
       try {
         // First check if user profile exists - use maybeSingle() instead of single()
         const { data: existingProfile, error: fetchError } = await supabase
@@ -167,11 +173,15 @@ const CVWelcomeGate: React.FC = () => {
           .maybeSingle();
 
         if (fetchError) {
+          console.error('❌ Error checking existing profile:', fetchError);
           throw fetchError;
         }
 
+        console.log('🔍 Existing profile check:', existingProfile ? 'Found' : 'Not found');
+
         if (existingProfile) {
           // Update existing profile
+          console.log('🔄 Updating existing profile...');
           const { error: updateError } = await supabase
             .from('user_profiles')
             .update({
@@ -180,9 +190,14 @@ const CVWelcomeGate: React.FC = () => {
             })
             .eq('user_id', user.id);
 
-          if (updateError) throw updateError;
+          if (updateError) {
+            console.error('❌ Update error:', updateError);
+            throw updateError;
+          }
+          console.log('✅ Profile updated successfully');
         } else {
           // Create new profile
+          console.log('➕ Creating new profile...');
           const { error: insertError } = await supabase
             .from('user_profiles')
             .insert({
@@ -191,11 +206,21 @@ const CVWelcomeGate: React.FC = () => {
               updated_at: new Date().toISOString()
             });
 
-          if (insertError) throw insertError;
+          if (insertError) {
+            console.error('❌ Insert error:', insertError);
+            throw insertError;
+          }
+          console.log('✅ Profile created successfully');
         }
 
+        // Update the auth context to reflect CV completion
+        console.log('🎯 Setting CV completion status to true');
         setHasCompletedCV(true);
+        
         toast.success('CV uploaded and processed successfully!');
+        
+        // Navigate to analysis page
+        console.log('🚀 Navigating to CV analysis...');
         navigate('/seeker/cv-analysis', { 
           state: { 
             cvData,
@@ -204,12 +229,12 @@ const CVWelcomeGate: React.FC = () => {
         });
 
       } catch (dbError) {
-        console.error('Database error:', dbError);
+        console.error('💥 Database error:', dbError);
         toast.error('CV uploaded but failed to save to database. Please try again or contact support.');
       }
 
     } catch (error) {
-      console.error('Error uploading CV:', error);
+      console.error('💥 Error uploading CV:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to process CV. Please try again or create a new CV.');
     } finally {
       setIsUploading(false);
@@ -256,6 +281,7 @@ const CVWelcomeGate: React.FC = () => {
       return;
     }
 
+    console.log('🚀 Navigating to CV builder...');
     navigate('/seeker/cv-builder');
   };
 

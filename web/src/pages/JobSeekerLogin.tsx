@@ -22,21 +22,32 @@ const JobSeekerLogin: React.FC = () => {
   const { signUp, signIn, user, hasCompletedCV, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Simple redirect logic - only redirect if user exists and we're not loading
+  // Handle redirect after successful login
   useEffect(() => {
-    if (user && !authLoading) {
-      console.log('User logged in, redirecting. hasCompletedCV:', hasCompletedCV);
+    // Only redirect if:
+    // 1. We have a user (logged in)
+    // 2. Auth is not loading
+    // 3. We're in login mode (not registration)
+    if (user && !authLoading && isLogin) {
+      console.log('🚀 User logged in, redirecting...', {
+        hasCompletedCV,
+        userEmail: user.email
+      });
       
-      // Simple timeout to ensure state is stable
-      setTimeout(() => {
+      // Add a small delay to ensure CV check is complete
+      const timer = setTimeout(() => {
         if (hasCompletedCV) {
+          console.log('✅ User has CV, going to dashboard');
           navigate('/seeker/dashboard');
         } else {
+          console.log('📝 User needs CV, going to welcome page');
           navigate('/seeker/cv-welcome');
         }
-      }, 100);
+      }, 500); // Give CV check time to complete
+
+      return () => clearTimeout(timer);
     }
-  }, [user, hasCompletedCV, authLoading, navigate]);
+  }, [user, hasCompletedCV, authLoading, navigate, isLogin]);
 
   // Clear error when switching modes
   useEffect(() => {
@@ -58,9 +69,11 @@ const JobSeekerLogin: React.FC = () => {
     try {
       if (isLogin) {
         // Handle login
+        console.log('🔐 Attempting login for:', formData.email);
         const { error } = await signIn(formData.email, formData.password);
         
         if (error) {
+          console.error('❌ Login error:', error);
           if (error.message?.includes('Invalid login credentials')) {
             setLoginError('Invalid email or password. Please check your credentials.');
           } else {
@@ -70,6 +83,7 @@ const JobSeekerLogin: React.FC = () => {
           return;
         }
         
+        console.log('✅ Login successful!');
         toast.success('Welcome back!');
         // Redirect will be handled by useEffect
       } else {
@@ -131,7 +145,7 @@ const JobSeekerLogin: React.FC = () => {
     });
   };
 
-  // Show a simple loading state only while auth is initializing
+  // Show loading state while auth is initializing
   if (authLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50 flex items-center justify-center">
