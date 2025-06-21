@@ -31,7 +31,16 @@ const JobSeekerLogin: React.FC = () => {
         const { error } = await signIn(formData.email, formData.password);
         
         if (error) {
-          toast.error('Invalid email or password');
+          // Handle specific Supabase authentication errors
+          if (error.code === 'invalid_credentials') {
+            toast.error('Invalid email or password. Please check your credentials and try again.');
+          } else if (error.code === 'email_not_confirmed') {
+            toast.error('Please check your email and click the confirmation link before signing in.');
+          } else if (error.status === 429) {
+            toast.error('Too many login attempts. Please wait a moment before trying again.');
+          } else {
+            toast.error('Sign in failed. Please try again.');
+          }
           return;
         }
         
@@ -51,20 +60,23 @@ const JobSeekerLogin: React.FC = () => {
         });
         
         if (error) {
+          // Handle specific Supabase registration errors
           if (error.message?.includes('User already registered')) {
             toast.error('Account already exists. Please sign in.');
             setIsLogin(true);
+          } else if (error.isRateLimit) {
+            toast.error('Too many registration attempts. Please wait a moment before trying again.');
           } else {
-            toast.error('Failed to create account');
+            toast.error('Failed to create account. Please try again.');
           }
           return;
         }
         
-        toast.success('Account created! Please sign in.');
+        toast.success('Account created! Please check your email to confirm your account before signing in.');
         setIsLogin(true);
       }
     } catch (error) {
-      toast.error('Something went wrong');
+      toast.error('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
