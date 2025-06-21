@@ -12,7 +12,6 @@ const JobSeekerLogin: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [justRegistered, setJustRegistered] = useState(false);
-  const [isLoginAttempt, setIsLoginAttempt] = useState(false);
   const [rateLimitInfo, setRateLimitInfo] = useState<{ isRateLimited: boolean; waitTime: number; message: string }>({
     isRateLimited: false,
     waitTime: 0,
@@ -29,14 +28,14 @@ const JobSeekerLogin: React.FC = () => {
   const { signUp, signIn, user, hasCompletedCV, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Handle redirect ONLY for actual login attempts, not registrations
+  // Handle redirect ONLY for login attempts, NOT for registrations
   useEffect(() => {
     // Only redirect if:
     // 1. We have a user
     // 2. Auth is not loading
-    // 3. This was an actual login attempt (not registration)
-    // 4. User didn't just register
-    if (user && !authLoading && isLoginAttempt && !justRegistered) {
+    // 3. User didn't just register (they should stay on login page)
+    // 4. This is actually a login (not a registration that created a user)
+    if (user && !authLoading && !justRegistered && isLogin) {
       console.log('Redirecting user after login. hasCompletedCV:', hasCompletedCV);
       
       if (hasCompletedCV) {
@@ -46,18 +45,17 @@ const JobSeekerLogin: React.FC = () => {
         // First time login, go to welcome page
         navigate('/seeker/cv-welcome');
       }
-      
-      // Reset the login attempt flag
-      setIsLoginAttempt(false);
     }
-  }, [user, authLoading, isLoginAttempt, hasCompletedCV, justRegistered, navigate]);
+  }, [user, authLoading, justRegistered, hasCompletedCV, navigate, isLogin]);
 
   // Clear states when switching between login/signup
   useEffect(() => {
     setLoginError('');
     setRateLimitInfo({ isRateLimited: false, waitTime: 0, message: '' });
-    setJustRegistered(false);
-    setIsLoginAttempt(false);
+    // Don't reset justRegistered when switching to login mode after registration
+    if (!isLogin) {
+      setJustRegistered(false);
+    }
   }, [isLogin]);
 
   // Rate limit countdown effect
@@ -104,14 +102,10 @@ const JobSeekerLogin: React.FC = () => {
 
     try {
       if (isLogin) {
-        // Handle login - set flag to indicate this is a login attempt
-        setIsLoginAttempt(true);
-        
+        // Handle login
         const { error } = await signIn(formData.email, formData.password);
         
         if (error) {
-          setIsLoginAttempt(false); // Reset flag on error
-          
           if (error.message?.includes('Invalid login credentials') || 
               error.message?.includes('invalid_credentials')) {
             setLoginError('The email or password you entered is incorrect. Please check your credentials and try again.');
@@ -132,7 +126,7 @@ const JobSeekerLogin: React.FC = () => {
         toast.success('Welcome back!');
         // Redirect will be handled by useEffect
       } else {
-        // Handle registration - DO NOT set login attempt flag
+        // Handle registration - DO NOT navigate anywhere, just switch to login mode
         if (formData.password !== formData.confirmPassword) {
           toast.error('Passwords do not match');
           return;
@@ -169,22 +163,26 @@ const JobSeekerLogin: React.FC = () => {
           return;
         }
         
-        // After successful registration, switch to login mode and stay on page
+        // After successful registration:
+        // 1. Set justRegistered flag to prevent navigation
+        // 2. Switch to login mode
+        // 3. Show success message
+        // 4. Clear form but keep email
         setJustRegistered(true);
-        // FIXED: Use the correct success message for registration
         toast.success('Account created successfully! Please sign in to continue.');
         setIsLogin(true);
         setFormData({
-          email: formData.email,
+          email: formData.email, // Keep the email for convenience
           password: '',
           confirmPassword: '',
           firstName: '',
           lastName: ''
         });
+        
+        // DO NOT NAVIGATE - stay on the same page
       }
     } catch (error: any) {
       console.error('Auth error:', error);
-      setIsLoginAttempt(false); // Reset flag on error
       
       if (error?.message?.includes('For security purposes, you can only request this after') ||
           error?.message?.includes('over_email_send_rate_limit') ||
