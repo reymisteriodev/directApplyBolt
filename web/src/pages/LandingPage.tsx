@@ -56,6 +56,17 @@ const LandingPage: React.FC = () => {
     navigate('/companies');
   };
 
+  // SIMPLE NAVIGATION FUNCTIONS - NO AUTH LOGIC
+  const handleSignInClick = () => {
+    console.log('🔗 Navigating to sign in page');
+    navigate('/seeker/login');
+  };
+
+  const handleStartJobSearchClick = () => {
+    console.log('🔗 Navigating to sign in page for job search');
+    navigate('/seeker/login');
+  };
+
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
@@ -75,21 +86,21 @@ const LandingPage: React.FC = () => {
               <a href="#how-it-works" className="text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium">How It Works</a>
               <a href="#pricing" className="text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium">Pricing</a>
               
-              {/* Job Seeker CTAs - SIMPLE NAVIGATION LINKS ONLY */}
+              {/* SIMPLE NAVIGATION BUTTONS */}
               <div className="flex items-center space-x-4">
-                <Link 
-                  to="/seeker/login" 
+                <button 
+                  onClick={handleSignInClick}
                   className="text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium"
                 >
                   Sign In
-                </Link>
-                <Link 
-                  to="/seeker/login" 
+                </button>
+                <button 
+                  onClick={handleStartJobSearchClick}
                   className="bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600 transition-all duration-200 text-sm font-medium flex items-center space-x-2 shadow-lg"
                 >
                   <UserPlus className="w-4 h-4" />
                   <span>Start Job Search</span>
-                </Link>
+                </button>
                 
                 {/* Prominent Company Toggle */}
                 <div className="ml-4 pl-4 border-l border-gray-300">
@@ -122,15 +133,15 @@ const LandingPage: React.FC = () => {
                 <a href="#how-it-works" className="text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium">How It Works</a>
                 <a href="#pricing" className="text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium">Pricing</a>
                 <div className="border-t border-gray-200 pt-4 space-y-3">
-                  <Link to="/seeker/login" className="block text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium">
+                  <button onClick={handleSignInClick} className="block text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium">
                     Sign In
-                  </Link>
-                  <Link 
-                    to="/seeker/login" 
-                    className="block bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-all duration-200 text-sm font-medium text-center"
+                  </button>
+                  <button 
+                    onClick={handleStartJobSearchClick}
+                    className="block bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-all duration-200 text-sm font-medium text-center w-full"
                   >
                     Start Job Search
-                  </Link>
+                  </button>
                   <button
                     onClick={handleSwitchToCompanies}
                     className="block w-full bg-gradient-to-r from-slate-700 to-slate-800 text-white px-4 py-2 rounded-lg hover:from-slate-800 hover:to-slate-900 transition-all duration-200 text-sm font-medium text-center"
@@ -186,26 +197,26 @@ const LandingPage: React.FC = () => {
               Get matched with opportunities that actually hire.
             </motion.p>
             
-            {/* HERO CTA BUTTONS - SIMPLE NAVIGATION LINKS ONLY */}
+            {/* SIMPLE HERO BUTTONS */}
             <motion.div 
               className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16"
               initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.5 }}
             >
-              <Link
-                to="/seeker/login"
+              <button
+                onClick={handleStartJobSearchClick}
                 className="bg-orange-500 text-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-orange-600 transition-all duration-200 hover:scale-105 flex items-center space-x-2 shadow-lg"
               >
                 <span>Start Job Search</span>
                 <ArrowRight className="w-5 h-5" />
-              </Link>
-              <Link
-                to="/seeker/login"
+              </button>
+              <button
+                onClick={handleSignInClick}
                 className="bg-white text-gray-700 border border-gray-300 px-8 py-4 rounded-xl text-lg font-semibold hover:border-gray-400 hover:shadow-lg transition-all duration-200 hover:scale-105"
               >
                 Sign In
-              </Link>
+              </button>
             </motion.div>
 
             {/* Stats */}
@@ -456,12 +467,12 @@ const LandingPage: React.FC = () => {
                   <span className="text-gray-700 text-sm">Basic application tracking</span>
                 </li>
               </ul>
-              <Link 
-                to="/seeker/login"
-                className="w-full bg-gray-900 text-white py-3 px-4 rounded-xl hover:bg-gray-800 transition-colors font-medium text-center block text-sm"
+              <button 
+                onClick={handleSignInClick}
+                className="w-full bg-gray-900 text-white py-3 px-4 rounded-xl hover:bg-gray-800 transition-colors font-medium text-center text-sm"
               >
                 Get Started
-              </Link>
+              </button>
             </motion.div>
 
             <motion.div 
@@ -495,12 +506,12 @@ const LandingPage: React.FC = () => {
                   <span className="text-gray-700 text-sm">Priority support</span>
                 </li>
               </ul>
-              <Link 
-                to="/seeker/login"
-                className="w-full bg-orange-500 text-white py-3 px-4 rounded-xl hover:bg-orange-600 transition-colors font-medium text-center block text-sm"
+              <button 
+                onClick={handleSignInClick}
+                className="w-full bg-orange-500 text-white py-3 px-4 rounded-xl hover:bg-orange-600 transition-colors font-medium text-center text-sm"
               >
                 Start Free Trial
-              </Link>
+              </button>
             </motion.div>
 
             <motion.div 
@@ -531,12 +542,12 @@ const LandingPage: React.FC = () => {
                   <span className="text-gray-700 text-sm">White-glove support</span>
                 </li>
               </ul>
-              <Link 
-                to="/seeker/login"
-                className="w-full bg-gray-900 text-white py-3 px-4 rounded-xl hover:bg-gray-800 transition-colors font-medium text-center block text-sm"
+              <button 
+                onClick={handleSignInClick}
+                className="w-full bg-gray-900 text-white py-3 px-4 rounded-xl hover:bg-gray-800 transition-colors font-medium text-center text-sm"
               >
                 Contact Sales
-              </Link>
+              </button>
             </motion.div>
           </div>
         </div>
@@ -561,7 +572,7 @@ const LandingPage: React.FC = () => {
             <div>
               <h3 className="font-semibold mb-4">For Job Seekers</h3>
               <ul className="space-y-2 text-gray-400">
-                <li><Link to="/seeker/login" className="hover:text-white transition-colors">Find Jobs</Link></li>
+                <li><button onClick={handleSignInClick} className="hover:text-white transition-colors">Find Jobs</button></li>
                 <li><a href="#" className="hover:text-white transition-colors">Interview Coach</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Career Resources</a></li>
               </ul>
