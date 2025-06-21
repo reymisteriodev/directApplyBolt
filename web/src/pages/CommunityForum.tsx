@@ -67,49 +67,83 @@ const CommunityForum: React.FC = () => {
   const loadPosts = async () => {
     try {
       setLoading(true);
+      console.log('🔄 Loading posts...');
       
+      // First, get all posts
       let query = supabase
         .from('posts')
-        .select(`
-          *,
-          user_profiles!inner(cv_data)
-        `)
-        .order('created_at', { ascending: false });
+        .select('*');
 
       if (filter === 'trending') {
         query = query.order('like_count', { ascending: false });
+      } else {
+        query = query.order('created_at', { ascending: false });
       }
 
       const { data: postsData, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Error loading posts:', error);
+        throw error;
+      }
 
-      // Get user likes for posts
-      const postIds = postsData?.map(p => p.id) || [];
-      const { data: likesData } = await supabase
-        .from('post_likes')
-        .select('post_id')
-        .eq('user_id', user?.id)
-        .in('post_id', postIds);
+      console.log('✅ Posts loaded:', postsData?.length || 0);
 
-      const likedPostIds = new Set(likesData?.map(l => l.post_id) || []);
+      if (!postsData || postsData.length === 0) {
+        setPosts([]);
+        setLoading(false);
+        return;
+      }
 
-      const formattedPosts: Post[] = postsData?.map(post => ({
-        id: post.id,
-        content: post.content,
-        created_at: post.created_at,
-        updated_at: post.updated_at,
-        like_count: post.like_count,
-        comment_count: post.comment_count,
-        user_id: post.user_id,
-        user_name: getUserName(post.user_profiles?.cv_data, post.user_id),
-        user_email: post.user_profiles?.cv_data?.personalInfo?.email || 'Unknown',
-        is_liked: likedPostIds.has(post.id)
-      })) || [];
+      // Get user profiles for post authors
+      const userIds = [...new Set(postsData.map(p => p.user_id))];
+      const { data: profilesData } = await supabase
+        .from('user_profiles')
+        .select('user_id, cv_data')
+        .in('user_id', userIds);
 
+      console.log('📋 Profiles loaded:', profilesData?.length || 0);
+
+      // Get user likes for posts if user is authenticated
+      let likedPostIds = new Set<string>();
+      if (user) {
+        const postIds = postsData.map(p => p.id);
+        const { data: likesData } = await supabase
+          .from('post_likes')
+          .select('post_id')
+          .eq('user_id', user.id)
+          .in('post_id', postIds);
+
+        likedPostIds = new Set(likesData?.map(l => l.post_id) || []);
+        console.log('❤️ User likes loaded:', likesData?.length || 0);
+      }
+
+      // Create a map of user profiles
+      const profilesMap = new Map();
+      profilesData?.forEach(profile => {
+        profilesMap.set(profile.user_id, profile.cv_data);
+      });
+
+      const formattedPosts: Post[] = postsData.map(post => {
+        const userProfile = profilesMap.get(post.user_id);
+        return {
+          id: post.id,
+          content: post.content,
+          created_at: post.created_at,
+          updated_at: post.updated_at,
+          like_count: post.like_count || 0,
+          comment_count: post.comment_count || 0,
+          user_id: post.user_id,
+          user_name: getUserName(userProfile, post.user_id),
+          user_email: userProfile?.personalInfo?.email || 'Unknown',
+          is_liked: likedPostIds.has(post.id)
+        };
+      });
+
+      console.log('✅ Formatted posts:', formattedPosts.length);
       setPosts(formattedPosts);
     } catch (error) {
-      console.error('Error loading posts:', error);
+      console.error('💥 Error loading posts:', error);
       toast.error('Failed to load posts');
     } finally {
       setLoading(false);
@@ -120,97 +154,156 @@ const CommunityForum: React.FC = () => {
     if (cvData?.personalInfo?.fullName) {
       return cvData.personalInfo.fullName;
     }
+    if (user && userId === user.id) {
+      const firstName = user.user_metadata?.first_name || '';
+      const lastName = user.user_metadata?.last_name || '';
+      if (firstName || lastName) {
+        return `${firstName} ${lastName}`.trim();
+      }
+      return user.email?.split('@')[0] || 'You';
+    }
     return `User ${userId.slice(0, 8)}`;
   };
 
   const handleCreatePost = async () => {
-    if (!newPostContent.trim() || !user) return;
+    if (!newPostContent.trim() || !user) {
+      toast.error('Please write something before posting');
+      return;
+    }
 
     setIsPosting(true);
     try {
-      const { error } = await supabase
+      console.log('📝 Creating post...');
+      
+      const { data, error } = await supabase
         .from('posts')
         .insert({
           content: newPostContent.trim(),
           user_id: user.id
-        });
+        })
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Error creating post:', error);
+        throw error;
+      }
 
+      console.log('✅ Post created:', data);
       setNewPostContent('');
       toast.success('Post created successfully!');
-      loadPosts();
+      
+      // Reload posts to show the new one
+      await loadPosts();
     } catch (error) {
-      console.error('Error creating post:', error);
-      toast.error('Failed to create post');
+      console.error('💥 Error creating post:', error);
+      toast.error('Failed to create post. Please try again.');
     } finally {
       setIsPosting(false);
     }
   };
 
   const handleLikePost = async (postId: string, isLiked: boolean) => {
-    if (!user) return;
+    if (!user) {
+      toast.error('Please sign in to like posts');
+      return;
+    }
 
     try {
+      console.log(`${isLiked ? '💔' : '❤️'} ${isLiked ? 'Unliking' : 'Liking'} post:`, postId);
+      
       if (isLiked) {
         // Unlike
-        await supabase
+        const { error } = await supabase
           .from('post_likes')
           .delete()
           .eq('post_id', postId)
           .eq('user_id', user.id);
+
+        if (error) throw error;
       } else {
         // Like
-        await supabase
+        const { error } = await supabase
           .from('post_likes')
           .insert({
             post_id: postId,
             user_id: user.id
           });
+
+        if (error) throw error;
       }
 
-      // Update local state
+      // Update local state optimistically
       setPosts(posts.map(post => 
         post.id === postId 
           ? { 
               ...post, 
               is_liked: !isLiked,
-              like_count: isLiked ? post.like_count - 1 : post.like_count + 1
+              like_count: isLiked ? Math.max(0, post.like_count - 1) : post.like_count + 1
             }
           : post
       ));
+
+      console.log('✅ Like updated successfully');
     } catch (error) {
-      console.error('Error toggling like:', error);
+      console.error('💥 Error toggling like:', error);
       toast.error('Failed to update like');
     }
   };
 
   const loadComments = async (postId: string) => {
     try {
+      console.log('💬 Loading comments for post:', postId);
+      
+      // Get comments
       const { data: commentsData, error } = await supabase
         .from('comments')
-        .select(`
-          *,
-          user_profiles!inner(cv_data)
-        `)
+        .select('*')
         .eq('post_id', postId)
         .order('created_at', { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Error loading comments:', error);
+        throw error;
+      }
 
-      const formattedComments: Comment[] = commentsData?.map(comment => ({
-        id: comment.id,
-        content: comment.content,
-        created_at: comment.created_at,
-        user_id: comment.user_id,
-        user_name: getUserName(comment.user_profiles?.cv_data, comment.user_id),
-        user_email: comment.user_profiles?.cv_data?.personalInfo?.email || 'Unknown',
-        parent_comment_id: comment.parent_comment_id
-      })) || [];
+      console.log('✅ Comments loaded:', commentsData?.length || 0);
+
+      if (!commentsData || commentsData.length === 0) {
+        setComments(prev => ({ ...prev, [postId]: [] }));
+        return;
+      }
+
+      // Get user profiles for comment authors
+      const userIds = [...new Set(commentsData.map(c => c.user_id))];
+      const { data: profilesData } = await supabase
+        .from('user_profiles')
+        .select('user_id, cv_data')
+        .in('user_id', userIds);
+
+      // Create a map of user profiles
+      const profilesMap = new Map();
+      profilesData?.forEach(profile => {
+        profilesMap.set(profile.user_id, profile.cv_data);
+      });
+
+      const formattedComments: Comment[] = commentsData.map(comment => {
+        const userProfile = profilesMap.get(comment.user_id);
+        return {
+          id: comment.id,
+          content: comment.content,
+          created_at: comment.created_at,
+          user_id: comment.user_id,
+          user_name: getUserName(userProfile, comment.user_id),
+          user_email: userProfile?.personalInfo?.email || 'Unknown',
+          parent_comment_id: comment.parent_comment_id
+        };
+      });
 
       setComments(prev => ({ ...prev, [postId]: formattedComments }));
+      console.log('✅ Comments formatted and set');
     } catch (error) {
-      console.error('Error loading comments:', error);
+      console.error('💥 Error loading comments:', error);
       toast.error('Failed to load comments');
     }
   };
@@ -234,21 +327,34 @@ const CommunityForum: React.FC = () => {
 
   const handleAddComment = async (postId: string) => {
     const content = newComments[postId]?.trim();
-    if (!content || !user) return;
+    if (!content || !user) {
+      toast.error('Please write a comment');
+      return;
+    }
 
     try {
-      const { error } = await supabase
+      console.log('💬 Adding comment to post:', postId);
+      
+      const { data, error } = await supabase
         .from('comments')
         .insert({
           post_id: postId,
           content,
           user_id: user.id
-        });
+        })
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Error adding comment:', error);
+        throw error;
+      }
 
+      console.log('✅ Comment added:', data);
       setNewComments(prev => ({ ...prev, [postId]: '' }));
-      loadComments(postId);
+      
+      // Reload comments for this post
+      await loadComments(postId);
       
       // Update comment count in posts
       setPosts(posts.map(post => 
@@ -259,7 +365,7 @@ const CommunityForum: React.FC = () => {
       
       toast.success('Comment added!');
     } catch (error) {
-      console.error('Error adding comment:', error);
+      console.error('💥 Error adding comment:', error);
       toast.error('Failed to add comment');
     }
   };
@@ -280,6 +386,28 @@ const CommunityForum: React.FC = () => {
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
+
+  // Show authentication required message if not logged in
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header userType="seeker" isAuthenticated={false} />
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center py-12">
+            <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Sign in to access the Community Forum</h3>
+            <p className="text-gray-600 mb-6">Connect with other job seekers and share your experiences</p>
+            <button
+              onClick={() => window.location.href = '/seeker/login'}
+              className="bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600 transition-colors"
+            >
+              Sign In
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -329,7 +457,7 @@ const CommunityForum: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             {[
               { label: 'Active Members', value: '2,847', icon: Users, color: 'bg-blue-100 text-blue-600' },
-              { label: 'Posts Today', value: '156', icon: MessageSquare, color: 'bg-green-100 text-green-600' },
+              { label: 'Posts Today', value: posts.length.toString(), icon: MessageSquare, color: 'bg-green-100 text-green-600' },
               { label: 'Success Stories', value: '89', icon: Award, color: 'bg-purple-100 text-purple-600' }
             ].map((stat, index) => (
               <motion.div 
@@ -363,7 +491,7 @@ const CommunityForum: React.FC = () => {
           <div className="flex items-start space-x-4">
             <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center">
               <span className="text-white font-bold">
-                {user ? getInitials(user.user_metadata?.first_name + ' ' + user.user_metadata?.last_name || user.email || 'U') : 'U'}
+                {getInitials(getUserName(null, user.id))}
               </span>
             </div>
             <div className="flex-1">
@@ -373,6 +501,7 @@ const CommunityForum: React.FC = () => {
                 placeholder="Share your thoughts, ask questions, or celebrate your wins..."
                 className="w-full p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
                 rows={3}
+                maxLength={1000}
               />
               <div className="flex items-center justify-between mt-4">
                 <div className="flex items-center space-x-4 text-sm text-gray-500">
@@ -380,6 +509,7 @@ const CommunityForum: React.FC = () => {
                     <Sparkles className="w-4 h-4" />
                     <span>Share your experience</span>
                   </span>
+                  <span>{newPostContent.length}/1000</span>
                 </div>
                 <button
                   onClick={handleCreatePost}
@@ -492,7 +622,7 @@ const CommunityForum: React.FC = () => {
                         <div className="flex items-start space-x-3 mb-6">
                           <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center">
                             <span className="text-white font-bold text-xs">
-                              {user ? getInitials(user.user_metadata?.first_name + ' ' + user.user_metadata?.last_name || user.email || 'U') : 'U'}
+                              {getInitials(getUserName(null, user.id))}
                             </span>
                           </div>
                           <div className="flex-1">
@@ -504,6 +634,7 @@ const CommunityForum: React.FC = () => {
                                 placeholder="Write a comment..."
                                 className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                                 onKeyPress={(e) => e.key === 'Enter' && handleAddComment(post.id)}
+                                maxLength={500}
                               />
                               <button
                                 onClick={() => handleAddComment(post.id)}
