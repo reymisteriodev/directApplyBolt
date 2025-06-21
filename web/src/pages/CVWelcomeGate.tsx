@@ -159,15 +159,14 @@ const CVWelcomeGate: React.FC = () => {
 
       // Try to save to database
       try {
-        // First check if user profile exists
+        // First check if user profile exists - use maybeSingle() instead of single()
         const { data: existingProfile, error: fetchError } = await supabase
           .from('user_profiles')
           .select('*')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
-        if (fetchError && fetchError.code !== 'PGRST116') {
-          // PGRST116 is "not found" error, which is expected for new users
+        if (fetchError) {
           throw fetchError;
         }
 
