@@ -9,9 +9,8 @@ import { useAuth } from '../contexts/AuthContext';
 const JobSeekerLogin: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-  const [isFormSubmitting, setIsFormSubmitting] = useState(false); // SEPARATE FROM AUTH LOADING
+  const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
-  const [hasRedirected, setHasRedirected] = useState(false); // PREVENT MULTIPLE REDIRECTS
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -20,79 +19,34 @@ const JobSeekerLogin: React.FC = () => {
     lastName: ''
   });
 
-  const { signUp, signIn, user, hasCompletedCV, hasSeenWelcome, loading: authLoading } = useAuth();
+  const { signUp, signIn, user, hasCompletedCV, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Handle redirect after authentication - but only once
+  // Handle redirect after authentication is complete
   useEffect(() => {
-    // Only redirect if we have a user, auth is not loading, form is not submitting, and we haven't redirected yet
-    if (user && !authLoading && !isFormSubmitting && !hasRedirected) {
-      console.log('🚀 User authenticated, determining redirect...', {
-        hasCompletedCV,
-        hasSeenWelcome,
-        isLogin
-      });
-
-      setHasRedirected(true); // PREVENT MULTIPLE REDIRECTS
-
-      // Small delay to ensure state is properly set
-      setTimeout(() => {
-        if (isLogin) {
-          // For existing users logging in
-          if (hasCompletedCV) {
-            console.log('✅ Existing user with CV → Dashboard');
-            navigate('/seeker/dashboard');
-          } else if (hasSeenWelcome) {
-            console.log('🔄 User seen welcome but no CV → CV Builder');
-            navigate('/seeker/cv-builder');
-          } else {
-            console.log('👋 First time user → Welcome');
-            navigate('/seeker/cv-welcome');
-          }
-        } else {
-          // For new registrations - always go to welcome
-          console.log('🆕 New registration → Welcome');
-          navigate('/seeker/cv-welcome');
-        }
-      }, 100);
+    if (user && !authLoading) {
+      if (isLogin) {
+        navigate('/seeker/dashboard');
+      }
     }
-  }, [user, authLoading, isFormSubmitting, hasCompletedCV, hasSeenWelcome, navigate, isLogin, hasRedirected]);
+  }, [user, authLoading, navigate, isLogin]);
 
-  // Clear login error when switching modes or typing
+  // Clear login error when switching between login/signup or when typing
   useEffect(() => {
     setLoginError('');
-    setHasRedirected(false); // RESET REDIRECT FLAG WHEN SWITCHING MODES
   }, [isLogin]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Prevent double submission
-    if (isFormSubmitting) {
-      console.log('⏳ Form already processing, ignoring submission');
-      return;
-    }
-
-    // Validate form data
-    if (!formData.email.trim() || !formData.password.trim()) {
-      toast.error('Please enter both email and password');
-      return;
-    }
-
-    console.log('🚀 Starting form submission...');
-    setIsFormSubmitting(true); // ONLY FORM LOADING, NOT AUTH LOADING
+    setLoading(true);
     setLoginError('');
 
     try {
       if (isLogin) {
-        console.log('🔐 Attempting login for:', formData.email);
-        
+        // Handle login
         const { error } = await signIn(formData.email, formData.password);
         
         if (error) {
-          console.error('❌ Login error:', error);
-          
-          // Handle specific authentication errors
           if (error.message?.includes('Invalid login credentials') || 
               error.message?.includes('invalid_credentials')) {
             setLoginError('The email or password you entered is incorrect. Please check your credentials and try again.');
@@ -110,14 +64,10 @@ const JobSeekerLogin: React.FC = () => {
           return;
         }
         
-        console.log('✅ Login successful');
         toast.success('Welcome back!');
-        // Navigation will be handled by useEffect
-        
+        navigate('/seeker/dashboard');
       } else {
-        console.log('📝 Attempting registration for:', formData.email);
-        
-        // Validation
+        // Handle registration
         if (formData.password !== formData.confirmPassword) {
           toast.error('Passwords do not match');
           return;
@@ -128,11 +78,6 @@ const JobSeekerLogin: React.FC = () => {
           return;
         }
 
-        if (!formData.firstName.trim() || !formData.lastName.trim()) {
-          toast.error('Please enter your first and last name');
-          return;
-        }
-
         const { error } = await signUp(formData.email, formData.password, {
           first_name: formData.firstName,
           last_name: formData.lastName,
@@ -140,7 +85,6 @@ const JobSeekerLogin: React.FC = () => {
         });
         
         if (error) {
-          console.error('❌ Registration error:', error);
           if (error.message?.includes('User already registered')) {
             toast.error('An account with this email already exists. Please sign in instead.');
             setIsLogin(true);
@@ -150,17 +94,15 @@ const JobSeekerLogin: React.FC = () => {
           return;
         }
         
-        console.log('✅ Registration successful');
-        toast.success('Account created successfully! Let\'s set up your profile.');
-        // Navigation will be handled by useEffect
+        toast.success('Account created successfully! Let\'s set up your CV to get started.');
+        navigate('/seeker/cv-welcome');
       }
     } catch (error: any) {
-      console.error('💥 Auth error:', error);
+      console.error('Auth error:', error);
       setLoginError('An unexpected error occurred. Please try again.');
       toast.error('An unexpected error occurred. Please try again.');
     } finally {
-      console.log('🏁 Form submission complete, resetting loading state');
-      setIsFormSubmitting(false); // ALWAYS RESET FORM LOADING
+      setLoading(false);
     }
   };
 
@@ -175,17 +117,7 @@ const JobSeekerLogin: React.FC = () => {
     });
   };
 
-  // Show a simple loading screen only if auth is still initializing AND we don't have a user yet
-  if (authLoading && !user) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
+  const isLoadingState = loading || authLoading;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
@@ -255,8 +187,7 @@ const JobSeekerLogin: React.FC = () => {
                       required={!isLogin}
                       value={formData.firstName}
                       onChange={handleInputChange}
-                      disabled={isFormSubmitting}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors disabled:opacity-50"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
                       placeholder="John"
                     />
                   </div>
@@ -271,8 +202,7 @@ const JobSeekerLogin: React.FC = () => {
                       required={!isLogin}
                       value={formData.lastName}
                       onChange={handleInputChange}
-                      disabled={isFormSubmitting}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors disabled:opacity-50"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
                       placeholder="Doe"
                     />
                   </div>
@@ -294,8 +224,7 @@ const JobSeekerLogin: React.FC = () => {
                     required
                     value={formData.email}
                     onChange={handleInputChange}
-                    disabled={isFormSubmitting}
-                    className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors disabled:opacity-50 ${
+                    className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${
                       loginError && loginError.includes('incorrect') 
                         ? 'border-red-300 bg-red-50' 
                         : 'border-gray-300'
@@ -320,8 +249,7 @@ const JobSeekerLogin: React.FC = () => {
                     required
                     value={formData.password}
                     onChange={handleInputChange}
-                    disabled={isFormSubmitting}
-                    className={`w-full pl-10 pr-10 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors disabled:opacity-50 ${
+                    className={`w-full pl-10 pr-10 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${
                       loginError && loginError.includes('incorrect') 
                         ? 'border-red-300 bg-red-50' 
                         : 'border-gray-300'
@@ -332,7 +260,6 @@ const JobSeekerLogin: React.FC = () => {
                     type="button"
                     className="absolute inset-y-0 right-0 pr-3 flex items-center"
                     onClick={() => setShowPassword(!showPassword)}
-                    disabled={isFormSubmitting}
                   >
                     {showPassword ? (
                       <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
@@ -359,8 +286,7 @@ const JobSeekerLogin: React.FC = () => {
                       required={!isLogin}
                       value={formData.confirmPassword}
                       onChange={handleInputChange}
-                      disabled={isFormSubmitting}
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors disabled:opacity-50"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
                       placeholder="Confirm your password"
                     />
                   </div>
@@ -374,8 +300,7 @@ const JobSeekerLogin: React.FC = () => {
                       id="remember-me"
                       name="remember-me"
                       type="checkbox"
-                      disabled={isFormSubmitting}
-                      className="h-4 w-4 text-orange-500 focus:ring-orange-500 border-gray-300 rounded disabled:opacity-50"
+                      className="h-4 w-4 text-orange-500 focus:ring-orange-500 border-gray-300 rounded"
                     />
                     <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
                       Remember me
@@ -387,17 +312,16 @@ const JobSeekerLogin: React.FC = () => {
                 </div>
               )}
 
-              {/* COMPLETELY SEPARATE FORM LOADING FROM AUTH LOADING */}
               <button
                 type="submit"
-                disabled={isFormSubmitting}
+                disabled={isLoadingState}
                 className="w-full bg-orange-500 text-white py-2 px-4 rounded-lg hover:bg-orange-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isFormSubmitting ? (
+                {isLoadingState ? (
                   <div className="flex items-center justify-center space-x-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     <span>
-                      {isLogin ? 'Signing in...' : 'Creating account...'}
+                      {loading ? 'Please wait...' : 'Signing in...'}
                     </span>
                   </div>
                 ) : (
@@ -412,7 +336,6 @@ const JobSeekerLogin: React.FC = () => {
                 <button
                   onClick={() => setIsLogin(!isLogin)}
                   className="text-orange-600 hover:text-orange-700 font-medium"
-                  disabled={isFormSubmitting}
                 >
                   {isLogin ? 'Sign up' : 'Sign in'}
                 </button>
