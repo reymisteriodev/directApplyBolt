@@ -67,12 +67,32 @@ const CommunityForum: React.FC = () => {
   const loadPosts = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Loading posts...');
+      console.log('🔄 Loading posts from Supabase...');
       
-      // Get posts with a simpler approach
+      // Test Supabase connection first
+      const { data: testData, error: testError } = await supabase
+        .from('posts')
+        .select('count', { count: 'exact', head: true });
+
+      if (testError) {
+        console.error('❌ Supabase connection test failed:', testError);
+        throw new Error(`Database connection failed: ${testError.message}`);
+      }
+
+      console.log('✅ Supabase connection successful');
+
+      // Get posts with proper ordering
       let query = supabase
         .from('posts')
-        .select('*');
+        .select(`
+          id,
+          content,
+          created_at,
+          updated_at,
+          like_count,
+          comment_count,
+          user_id
+        `);
 
       if (filter === 'trending') {
         query = query.order('like_count', { ascending: false });
@@ -80,11 +100,11 @@ const CommunityForum: React.FC = () => {
         query = query.order('created_at', { ascending: false });
       }
 
-      const { data: postsData, error } = await query;
+      const { data: postsData, error } = await query.limit(50);
 
       if (error) {
         console.error('❌ Error loading posts:', error);
-        throw error;
+        throw new Error(`Failed to load posts: ${error.message}`);
       }
 
       console.log('✅ Posts loaded:', postsData?.length || 0);
@@ -98,34 +118,44 @@ const CommunityForum: React.FC = () => {
       // Get user likes for posts if user is authenticated
       let likedPostIds = new Set<string>();
       if (user) {
-        const postIds = postsData.map(p => p.id);
-        const { data: likesData } = await supabase
-          .from('post_likes')
-          .select('post_id')
-          .eq('user_id', user.id)
-          .in('post_id', postIds);
+        try {
+          const postIds = postsData.map(p => p.id);
+          const { data: likesData, error: likesError } = await supabase
+            .from('post_likes')
+            .select('post_id')
+            .eq('user_id', user.id)
+            .in('post_id', postIds);
 
-        likedPostIds = new Set(likesData?.map(l => l.post_id) || []);
-        console.log('❤️ User likes loaded:', likesData?.length || 0);
+          if (!likesError && likesData) {
+            likedPostIds = new Set(likesData.map(l => l.post_id));
+            console.log('❤️ User likes loaded:', likesData.length);
+          }
+        } catch (likesError) {
+          console.warn('⚠️ Could not load user likes:', likesError);
+        }
       }
 
-      // Get user information from auth.users metadata
+      // Get user information - try profiles first, then fallback
       const userIds = [...new Set(postsData.map(p => p.user_id))];
       
-      // Try to get user profiles first
-      const { data: profilesData } = await supabase
-        .from('user_profiles')
-        .select('user_id, cv_data')
-        .in('user_id', userIds);
+      let profilesMap = new Map();
+      try {
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('user_profiles')
+          .select('user_id, cv_data')
+          .in('user_id', userIds);
 
-      console.log('📋 Profiles loaded:', profilesData?.length || 0);
+        if (!profilesError && profilesData) {
+          profilesData.forEach(profile => {
+            profilesMap.set(profile.user_id, profile.cv_data);
+          });
+          console.log('📋 Profiles loaded:', profilesData.length);
+        }
+      } catch (profilesError) {
+        console.warn('⚠️ Could not load user profiles:', profilesError);
+      }
 
-      // Create a map of user profiles
-      const profilesMap = new Map();
-      profilesData?.forEach(profile => {
-        profilesMap.set(profile.user_id, profile.cv_data);
-      });
-
+      // Format posts with user information
       const formattedPosts: Post[] = postsData.map(post => {
         const userProfile = profilesMap.get(post.user_id);
         return {
@@ -146,7 +176,10 @@ const CommunityForum: React.FC = () => {
       setPosts(formattedPosts);
     } catch (error) {
       console.error('💥 Error loading posts:', error);
-      toast.error('Failed to load posts. Please try again.');
+      toast.error(`Failed to load posts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Set empty posts array on error to show empty state
+      setPosts([]);
     } finally {
       setLoading(false);
     }
@@ -207,7 +240,7 @@ const CommunityForum: React.FC = () => {
 
       if (error) {
         console.error('❌ Error creating post:', error);
-        throw error;
+        throw new Error(`Failed to create post: ${error.message}`);
       }
 
       console.log('✅ Post created:', data);
@@ -218,7 +251,7 @@ const CommunityForum: React.FC = () => {
       await loadPosts();
     } catch (error) {
       console.error('💥 Error creating post:', error);
-      toast.error('Failed to create post. Please try again.');
+      toast.error(`Failed to create post: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsPosting(false);
     }
@@ -241,7 +274,10 @@ const CommunityForum: React.FC = () => {
           .eq('post_id', postId)
           .eq('user_id', user.id);
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Error unliking post:', error);
+          throw new Error(`Failed to unlike post: ${error.message}`);
+        }
       } else {
         // Like
         const { error } = await supabase
@@ -251,7 +287,10 @@ const CommunityForum: React.FC = () => {
             user_id: user.id
           });
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Error liking post:', error);
+          throw new Error(`Failed to like post: ${error.message}`);
+        }
       }
 
       // Update local state optimistically
@@ -268,7 +307,7 @@ const CommunityForum: React.FC = () => {
       console.log('✅ Like updated successfully');
     } catch (error) {
       console.error('💥 Error toggling like:', error);
-      toast.error('Failed to update like');
+      toast.error(`Failed to update like: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -285,7 +324,7 @@ const CommunityForum: React.FC = () => {
 
       if (error) {
         console.error('❌ Error loading comments:', error);
-        throw error;
+        throw new Error(`Failed to load comments: ${error.message}`);
       }
 
       console.log('✅ Comments loaded:', commentsData?.length || 0);
@@ -297,16 +336,22 @@ const CommunityForum: React.FC = () => {
 
       // Get user profiles for comment authors
       const userIds = [...new Set(commentsData.map(c => c.user_id))];
-      const { data: profilesData } = await supabase
-        .from('user_profiles')
-        .select('user_id, cv_data')
-        .in('user_id', userIds);
+      
+      let profilesMap = new Map();
+      try {
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('user_profiles')
+          .select('user_id, cv_data')
+          .in('user_id', userIds);
 
-      // Create a map of user profiles
-      const profilesMap = new Map();
-      profilesData?.forEach(profile => {
-        profilesMap.set(profile.user_id, profile.cv_data);
-      });
+        if (!profilesError && profilesData) {
+          profilesData.forEach(profile => {
+            profilesMap.set(profile.user_id, profile.cv_data);
+          });
+        }
+      } catch (profilesError) {
+        console.warn('⚠️ Could not load comment author profiles:', profilesError);
+      }
 
       const formattedComments: Comment[] = commentsData.map(comment => {
         const userProfile = profilesMap.get(comment.user_id);
@@ -325,7 +370,7 @@ const CommunityForum: React.FC = () => {
       console.log('✅ Comments formatted and set');
     } catch (error) {
       console.error('💥 Error loading comments:', error);
-      toast.error('Failed to load comments');
+      toast.error(`Failed to load comments: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -378,7 +423,7 @@ const CommunityForum: React.FC = () => {
 
       if (error) {
         console.error('❌ Error adding comment:', error);
-        throw error;
+        throw new Error(`Failed to add comment: ${error.message}`);
       }
 
       console.log('✅ Comment added:', data);
@@ -397,7 +442,7 @@ const CommunityForum: React.FC = () => {
       toast.success('Comment added!');
     } catch (error) {
       console.error('💥 Error adding comment:', error);
-      toast.error('Failed to add comment');
+      toast.error(`Failed to add comment: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
