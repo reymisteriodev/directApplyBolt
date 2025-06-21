@@ -69,7 +69,7 @@ const CommunityForum: React.FC = () => {
       setLoading(true);
       console.log('🔄 Loading posts...');
       
-      // First, get all posts
+      // Get posts with a simpler approach
       let query = supabase
         .from('posts')
         .select('*');
@@ -95,15 +95,6 @@ const CommunityForum: React.FC = () => {
         return;
       }
 
-      // Get user profiles for post authors
-      const userIds = [...new Set(postsData.map(p => p.user_id))];
-      const { data: profilesData } = await supabase
-        .from('user_profiles')
-        .select('user_id, cv_data')
-        .in('user_id', userIds);
-
-      console.log('📋 Profiles loaded:', profilesData?.length || 0);
-
       // Get user likes for posts if user is authenticated
       let likedPostIds = new Set<string>();
       if (user) {
@@ -117,6 +108,17 @@ const CommunityForum: React.FC = () => {
         likedPostIds = new Set(likesData?.map(l => l.post_id) || []);
         console.log('❤️ User likes loaded:', likesData?.length || 0);
       }
+
+      // Get user information from auth.users metadata
+      const userIds = [...new Set(postsData.map(p => p.user_id))];
+      
+      // Try to get user profiles first
+      const { data: profilesData } = await supabase
+        .from('user_profiles')
+        .select('user_id, cv_data')
+        .in('user_id', userIds);
+
+      console.log('📋 Profiles loaded:', profilesData?.length || 0);
 
       // Create a map of user profiles
       const profilesMap = new Map();
@@ -135,7 +137,7 @@ const CommunityForum: React.FC = () => {
           comment_count: post.comment_count || 0,
           user_id: post.user_id,
           user_name: getUserName(userProfile, post.user_id),
-          user_email: userProfile?.personalInfo?.email || 'Unknown',
+          user_email: userProfile?.personalInfo?.email || 'user@example.com',
           is_liked: likedPostIds.has(post.id)
         };
       });
@@ -144,30 +146,49 @@ const CommunityForum: React.FC = () => {
       setPosts(formattedPosts);
     } catch (error) {
       console.error('💥 Error loading posts:', error);
-      toast.error('Failed to load posts');
+      toast.error('Failed to load posts. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   const getUserName = (cvData: any, userId: string) => {
+    // First try to get name from CV data
     if (cvData?.personalInfo?.fullName) {
       return cvData.personalInfo.fullName;
     }
+    
+    // If it's the current user, try to get from user metadata
     if (user && userId === user.id) {
       const firstName = user.user_metadata?.first_name || '';
       const lastName = user.user_metadata?.last_name || '';
       if (firstName || lastName) {
         return `${firstName} ${lastName}`.trim();
       }
-      return user.email?.split('@')[0] || 'You';
+      // Fallback to email username
+      if (user.email) {
+        return user.email.split('@')[0];
+      }
+      return 'You';
     }
+    
+    // For other users, create a friendly anonymous name
     return `User ${userId.slice(0, 8)}`;
   };
 
   const handleCreatePost = async () => {
-    if (!newPostContent.trim() || !user) {
+    if (!newPostContent.trim()) {
       toast.error('Please write something before posting');
+      return;
+    }
+
+    if (!user) {
+      toast.error('Please sign in to create posts');
+      return;
+    }
+
+    if (newPostContent.length > 1000) {
+      toast.error('Post is too long. Maximum 1000 characters allowed.');
       return;
     }
 
@@ -295,7 +316,7 @@ const CommunityForum: React.FC = () => {
           created_at: comment.created_at,
           user_id: comment.user_id,
           user_name: getUserName(userProfile, comment.user_id),
-          user_email: userProfile?.personalInfo?.email || 'Unknown',
+          user_email: userProfile?.personalInfo?.email || 'user@example.com',
           parent_comment_id: comment.parent_comment_id
         };
       });
@@ -327,8 +348,18 @@ const CommunityForum: React.FC = () => {
 
   const handleAddComment = async (postId: string) => {
     const content = newComments[postId]?.trim();
-    if (!content || !user) {
+    if (!content) {
       toast.error('Please write a comment');
+      return;
+    }
+
+    if (!user) {
+      toast.error('Please sign in to comment');
+      return;
+    }
+
+    if (content.length > 500) {
+      toast.error('Comment is too long. Maximum 500 characters allowed.');
       return;
     }
 
@@ -509,11 +540,13 @@ const CommunityForum: React.FC = () => {
                     <Sparkles className="w-4 h-4" />
                     <span>Share your experience</span>
                   </span>
-                  <span>{newPostContent.length}/1000</span>
+                  <span className={newPostContent.length > 900 ? 'text-red-500 font-medium' : ''}>
+                    {newPostContent.length}/1000
+                  </span>
                 </div>
                 <button
                   onClick={handleCreatePost}
-                  disabled={!newPostContent.trim() || isPosting}
+                  disabled={!newPostContent.trim() || isPosting || newPostContent.length > 1000}
                   className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-6 py-2 rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
                 >
                   {isPosting ? (
@@ -644,6 +677,11 @@ const CommunityForum: React.FC = () => {
                                 <Send className="w-4 h-4" />
                               </button>
                             </div>
+                            {newComments[post.id] && (
+                              <div className="mt-1 text-xs text-gray-500">
+                                {newComments[post.id].length}/500
+                              </div>
+                            )}
                           </div>
                         </div>
 
