@@ -12,6 +12,7 @@ const JobSeekerLogin: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [justRegistered, setJustRegistered] = useState(false);
+  const [isLoginAttempt, setIsLoginAttempt] = useState(false);
   const [rateLimitInfo, setRateLimitInfo] = useState<{ isRateLimited: boolean; waitTime: number; message: string }>({
     isRateLimited: false,
     waitTime: 0,
@@ -28,15 +29,16 @@ const JobSeekerLogin: React.FC = () => {
   const { signUp, signIn, user, hasCompletedCV, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Handle redirect after authentication is complete - ONLY for login, not registration
+  // Handle redirect ONLY for actual login attempts, not registrations
   useEffect(() => {
     // Only redirect if:
     // 1. We have a user
     // 2. Auth is not loading
-    // 3. This is a login attempt (not just registered)
-    // 4. User is in login mode
-    if (user && !authLoading && !justRegistered && isLogin) {
-      // For login users, check if they have completed CV
+    // 3. This was an actual login attempt (not registration)
+    // 4. User didn't just register
+    if (user && !authLoading && isLoginAttempt && !justRegistered) {
+      console.log('Redirecting user after login. hasCompletedCV:', hasCompletedCV);
+      
       if (hasCompletedCV) {
         // User has CV, go to dashboard
         navigate('/seeker/dashboard');
@@ -44,14 +46,18 @@ const JobSeekerLogin: React.FC = () => {
         // First time login, go to welcome page
         navigate('/seeker/cv-welcome');
       }
+      
+      // Reset the login attempt flag
+      setIsLoginAttempt(false);
     }
-  }, [user, authLoading, navigate, isLogin, hasCompletedCV, justRegistered]);
+  }, [user, authLoading, isLoginAttempt, hasCompletedCV, justRegistered, navigate]);
 
-  // Clear login error when switching between login/signup or when typing
+  // Clear states when switching between login/signup
   useEffect(() => {
     setLoginError('');
     setRateLimitInfo({ isRateLimited: false, waitTime: 0, message: '' });
-    setJustRegistered(false); // Reset registration flag when switching modes
+    setJustRegistered(false);
+    setIsLoginAttempt(false);
   }, [isLogin]);
 
   // Rate limit countdown effect
@@ -80,15 +86,13 @@ const JobSeekerLogin: React.FC = () => {
   }, [rateLimitInfo.isRateLimited, rateLimitInfo.waitTime]);
 
   const extractWaitTimeFromError = (errorMessage: string): number => {
-    // Extract wait time from messages like "For security purposes, you can only request this after 22 seconds."
     const match = errorMessage.match(/after (\d+) seconds?/);
-    return match ? parseInt(match[1], 10) : 60; // Default to 60 seconds if we can't parse
+    return match ? parseInt(match[1], 10) : 60;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Prevent submission if rate limited
     if (rateLimitInfo.isRateLimited) {
       toast.error(`Please wait ${rateLimitInfo.waitTime} seconds before trying again.`);
       return;
@@ -100,11 +104,14 @@ const JobSeekerLogin: React.FC = () => {
 
     try {
       if (isLogin) {
-        // Handle login - redirect will be handled by useEffect
+        // Handle login - set flag to indicate this is a login attempt
+        setIsLoginAttempt(true);
+        
         const { error } = await signIn(formData.email, formData.password);
         
         if (error) {
-          // Handle specific authentication errors
+          setIsLoginAttempt(false); // Reset flag on error
+          
           if (error.message?.includes('Invalid login credentials') || 
               error.message?.includes('invalid_credentials')) {
             setLoginError('The email or password you entered is incorrect. Please check your credentials and try again.');
@@ -123,9 +130,9 @@ const JobSeekerLogin: React.FC = () => {
         }
         
         toast.success('Welcome back!');
-        // Redirect will be handled by useEffect based on hasCompletedCV
+        // Redirect will be handled by useEffect
       } else {
-        // Handle registration - stay on sign-in page after successful registration
+        // Handle registration - DO NOT set login attempt flag
         if (formData.password !== formData.confirmPassword) {
           toast.error('Passwords do not match');
           return;
@@ -143,7 +150,6 @@ const JobSeekerLogin: React.FC = () => {
         });
         
         if (error) {
-          // Handle rate limiting errors specifically
           if (error.message?.includes('For security purposes, you can only request this after') ||
               error.message?.includes('over_email_send_rate_limit') ||
               error.status === 429) {
@@ -156,18 +162,17 @@ const JobSeekerLogin: React.FC = () => {
             toast.error(`Rate limit reached. Please wait ${waitTime} seconds before trying again.`);
           } else if (error.message?.includes('User already registered')) {
             toast.error('An account with this email already exists. Please sign in instead.');
-            setIsLogin(true); // Switch to login mode
+            setIsLogin(true);
           } else {
             toast.error(error.message || 'Failed to create account');
           }
           return;
         }
         
-        // After successful registration, switch to login mode and prevent auto-redirect
+        // After successful registration, switch to login mode and stay on page
         setJustRegistered(true);
         toast.success('Account created successfully! Please sign in to continue.');
         setIsLogin(true);
-        // Clear form data except email
         setFormData({
           email: formData.email,
           password: '',
@@ -178,8 +183,8 @@ const JobSeekerLogin: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Auth error:', error);
+      setIsLoginAttempt(false); // Reset flag on error
       
-      // Handle rate limiting in catch block as well
       if (error?.message?.includes('For security purposes, you can only request this after') ||
           error?.message?.includes('over_email_send_rate_limit') ||
           error?.status === 429) {
@@ -200,7 +205,6 @@ const JobSeekerLogin: React.FC = () => {
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Clear login error when user starts typing
     if (loginError) {
       setLoginError('');
     }
@@ -211,7 +215,6 @@ const JobSeekerLogin: React.FC = () => {
     });
   };
 
-  // Show loading state while form is submitting or auth is loading
   const isLoadingState = loading || authLoading;
   const isFormDisabled = isLoadingState || rateLimitInfo.isRateLimited;
 
