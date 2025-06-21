@@ -12,6 +12,7 @@ const JobSeekerLogin: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [justRegistered, setJustRegistered] = useState(false);
+  const [justLoggedIn, setJustLoggedIn] = useState(false); // NEW: Track if user just logged in
   const [rateLimitInfo, setRateLimitInfo] = useState<{ isRateLimited: boolean; waitTime: number; message: string }>({
     isRateLimited: false,
     waitTime: 0,
@@ -28,15 +29,15 @@ const JobSeekerLogin: React.FC = () => {
   const { signUp, signIn, user, hasCompletedCV, hasSeenWelcome, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Handle redirect logic with welcome page tracking
+  // FIXED: Only redirect if user just logged in successfully, not just because they have a session
   useEffect(() => {
     // Only redirect if:
     // 1. We have a user
     // 2. Auth is not loading
-    // 3. User didn't just register (they should stay on login page)
-    // 4. This is actually a login (not a registration that created a user)
-    if (user && !authLoading && !justRegistered && isLogin) {
-      console.log('Redirecting user after login. hasCompletedCV:', hasCompletedCV, 'hasSeenWelcome:', hasSeenWelcome);
+    // 3. User just logged in (not just navigating to the page with existing session)
+    // 4. This is actually a login (not a registration)
+    if (user && !authLoading && justLoggedIn && isLogin) {
+      console.log('Redirecting user after successful login. hasCompletedCV:', hasCompletedCV, 'hasSeenWelcome:', hasSeenWelcome);
       
       if (hasCompletedCV) {
         // User has CV, go to dashboard
@@ -49,7 +50,7 @@ const JobSeekerLogin: React.FC = () => {
         navigate('/seeker/cv-welcome');
       }
     }
-  }, [user, authLoading, justRegistered, hasCompletedCV, hasSeenWelcome, navigate, isLogin]);
+  }, [user, authLoading, justLoggedIn, hasCompletedCV, hasSeenWelcome, navigate, isLogin]);
 
   // Clear states when switching between login/signup
   useEffect(() => {
@@ -59,6 +60,8 @@ const JobSeekerLogin: React.FC = () => {
     if (!isLogin) {
       setJustRegistered(false);
     }
+    // Reset justLoggedIn when switching modes
+    setJustLoggedIn(false);
   }, [isLogin]);
 
   // Rate limit countdown effect
@@ -126,6 +129,8 @@ const JobSeekerLogin: React.FC = () => {
           return;
         }
         
+        // FIXED: Set justLoggedIn flag to trigger redirect
+        setJustLoggedIn(true);
         toast.success('Welcome back!');
         // Redirect will be handled by useEffect
       } else {
