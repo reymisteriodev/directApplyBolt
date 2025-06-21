@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Search, User, Building2, LogOut, FileText, Plus, BarChart3 } from 'lucide-react';
+import { Search, User, Building2, LogOut, FileText, Plus, BarChart3, Users } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { toast } from 'react-hot-toast';
@@ -57,6 +57,13 @@ const Header: React.FC<HeaderProps> = ({ userType, isAuthenticated = false }) =>
                     className={`text-gray-700 hover:${theme.accent} font-medium transition-colors text-sm`}
                   >
                     Jobs
+                  </Link>
+                  <Link
+                    to="/seeker/community"
+                    className={`text-gray-700 hover:${theme.accent} font-medium transition-colors text-sm flex items-center space-x-1`}
+                  >
+                    <Users className="w-4 h-4" />
+                    <span>Community</span>
                   </Link>
                   <Link
                     to="/seeker/applications"

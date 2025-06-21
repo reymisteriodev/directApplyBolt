@@ -21,6 +21,7 @@ import CVAnalysis from './pages/CVAnalysis';
 import CVWelcomeGate from './pages/CVWelcomeGate';
 import CVDashboard from './pages/CVDashboard';
 import CVNewGate from './pages/CVNewGate';
+import CommunityForum from './pages/CommunityForum';
 
 function App() {
   return (
@@ -40,6 +41,7 @@ function App() {
               <Route path="/seeker/cv-analysis-hub" element={<CVDashboard />} />
               <Route path="/seeker/dashboard" element={<JobMatchingDashboard />} />
               <Route path="/seeker/jobs" element={<JobSeekerDashboard />} />
+              <Route path="/seeker/community" element={<CommunityForum />} />
               <Route path="/company/dashboard" element={<CompanyDashboard />} />
               <Route path="/seeker/profile" element={<Profile />} />
               <Route path="/seeker/interview-coach" element={<InterviewCoach />} />
