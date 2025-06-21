@@ -12,7 +12,6 @@ const JobSeekerLogin: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [justRegistered, setJustRegistered] = useState(false);
-  const [preventNavigation, setPreventNavigation] = useState(false);
   const [rateLimitInfo, setRateLimitInfo] = useState<{ isRateLimited: boolean; waitTime: number; message: string }>({
     isRateLimited: false,
     waitTime: 0,
@@ -29,32 +28,33 @@ const JobSeekerLogin: React.FC = () => {
   const { signUp, signIn, user, hasCompletedCV, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Handle redirect ONLY for actual login attempts
+  // Handle redirect ONLY for login attempts, NOT for registrations
   useEffect(() => {
     // Only redirect if:
     // 1. We have a user
     // 2. Auth is not loading
-    // 3. User didn't just register
-    // 4. Navigation is not prevented
-    // 5. This is a login mode (not registration)
-    if (user && !authLoading && !justRegistered && !preventNavigation && isLogin) {
+    // 3. User didn't just register (they should stay on login page)
+    // 4. This is actually a login (not a registration that created a user)
+    if (user && !authLoading && !justRegistered && isLogin) {
       console.log('Redirecting user after login. hasCompletedCV:', hasCompletedCV);
       
       if (hasCompletedCV) {
+        // Returning user with CV - go to dashboard
         navigate('/seeker/dashboard');
       } else {
+        // First time login or user without CV - go to welcome page
         navigate('/seeker/cv-welcome');
       }
     }
-  }, [user, authLoading, justRegistered, preventNavigation, hasCompletedCV, navigate, isLogin]);
+  }, [user, authLoading, justRegistered, hasCompletedCV, navigate, isLogin]);
 
   // Clear states when switching between login/signup
   useEffect(() => {
     setLoginError('');
     setRateLimitInfo({ isRateLimited: false, waitTime: 0, message: '' });
+    // Don't reset justRegistered when switching to login mode after registration
     if (!isLogin) {
       setJustRegistered(false);
-      setPreventNavigation(false);
     }
   }, [isLogin]);
 
@@ -102,9 +102,7 @@ const JobSeekerLogin: React.FC = () => {
 
     try {
       if (isLogin) {
-        // Handle login - allow navigation
-        setPreventNavigation(false);
-        
+        // Handle login
         const { error } = await signIn(formData.email, formData.password);
         
         if (error) {
@@ -125,12 +123,18 @@ const JobSeekerLogin: React.FC = () => {
           return;
         }
         
-        toast.success('Welcome back!');
-        // Navigation will be handled by useEffect
-      } else {
-        // Handle registration - prevent any navigation
-        setPreventNavigation(true);
+        // Show different success messages based on CV completion status
+        // Note: hasCompletedCV might not be updated yet, so we'll show a generic message
+        // The specific welcome will be handled by the destination page
+        if (hasCompletedCV) {
+          toast.success('Welcome back!');
+        } else {
+          toast.success('Welcome! Let\'s get your profile set up.');
+        }
         
+        // Redirect will be handled by useEffect
+      } else {
+        // Handle registration - DO NOT navigate anywhere, just switch to login mode
         if (formData.password !== formData.confirmPassword) {
           toast.error('Passwords do not match');
           return;
@@ -168,18 +172,15 @@ const JobSeekerLogin: React.FC = () => {
         }
         
         // After successful registration:
+        // 1. Set justRegistered flag to prevent navigation
+        // 2. Switch to login mode
+        // 3. Show success message
+        // 4. Clear form but keep email
         setJustRegistered(true);
-        setPreventNavigation(true); // Prevent any navigation
-        
-        // Show the correct success message
         toast.success('Account created successfully! Please sign in to continue.');
-        
-        // Switch to login mode
         setIsLogin(true);
-        
-        // Clear form but keep email
         setFormData({
-          email: formData.email,
+          email: formData.email, // Keep the email for convenience
           password: '',
           confirmPassword: '',
           firstName: '',
@@ -219,13 +220,6 @@ const JobSeekerLogin: React.FC = () => {
       ...formData,
       [e.target.name]: e.target.value
     });
-  };
-
-  const handleModeSwitch = () => {
-    // When switching modes, reset all flags
-    setJustRegistered(false);
-    setPreventNavigation(false);
-    setIsLogin(!isLogin);
   };
 
   const isLoadingState = loading || authLoading;
@@ -514,7 +508,7 @@ const JobSeekerLogin: React.FC = () => {
               <p className="text-sm text-gray-600">
                 {isLogin ? "Don't have an account? " : "Already have an account? "}
                 <button
-                  onClick={handleModeSwitch}
+                  onClick={() => setIsLogin(!isLogin)}
                   disabled={isFormDisabled}
                   className="text-orange-600 hover:text-orange-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
