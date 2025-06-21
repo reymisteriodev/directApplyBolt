@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 const CVWelcomeGate: React.FC = () => {
   const navigate = useNavigate();
-  const { user, setHasCompletedCV } = useAuth();
+  const { user, setHasCompletedCV, loading } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
 
@@ -68,8 +68,16 @@ const CVWelcomeGate: React.FC = () => {
       return;
     }
 
+    // Wait for auth to load if it's still loading
+    if (loading) {
+      toast.error('Please wait for authentication to complete');
+      return;
+    }
+
+    // Check if user is authenticated
     if (!user) {
-      toast.error('Please sign in to upload your CV');
+      toast.error('Authentication required. Please sign in to continue.');
+      navigate('/seeker/login');
       return;
     }
 
@@ -237,8 +245,32 @@ const CVWelcomeGate: React.FC = () => {
   };
 
   const handleCreateCV = () => {
+    // Check authentication before navigating to CV builder
+    if (loading) {
+      toast.error('Please wait for authentication to complete');
+      return;
+    }
+
+    if (!user) {
+      toast.error('Authentication required. Please sign in to continue.');
+      navigate('/seeker/login');
+      return;
+    }
+
     navigate('/seeker/cv-builder');
   };
+
+  // Show loading state while auth is loading
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
