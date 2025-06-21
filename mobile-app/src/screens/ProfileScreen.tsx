@@ -7,8 +7,11 @@ import {
   ScrollView,
   Alert,
   Linking,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../contexts/AuthContext';
 
 const ProfileScreen: React.FC = () => {
@@ -28,21 +31,117 @@ const ProfileScreen: React.FC = () => {
   const handleOpenWebPlatform = () => {
     Alert.alert(
       'Open Web Platform',
-      'This will open the full DirectApply platform in your browser.',
+      'This will open the full DirectApply platform in your browser where you can edit your profile and access advanced features.',
       [
         { text: 'Cancel', style: 'cancel' },
         { 
           text: 'Open', 
-          onPress: () => Linking.openURL('https://your-directapply-domain.com')
+          onPress: () => Linking.openURL('https://your-directapply-domain.com/seeker/profile')
         },
       ]
     );
   };
 
+  const profileSections = [
+    {
+      title: 'Account',
+      items: [
+        {
+          icon: 'person-outline',
+          title: 'Edit Profile',
+          subtitle: 'Update your CV and personal information',
+          onPress: handleOpenWebPlatform,
+          color: '#3B82F6',
+        },
+        {
+          icon: 'document-text-outline',
+          title: 'CV Analysis',
+          subtitle: 'View detailed CV insights and improvements',
+          onPress: handleOpenWebPlatform,
+          color: '#10B981',
+        },
+        {
+          icon: 'school-outline',
+          title: 'Interview Coach',
+          subtitle: 'Practice with AI-powered interview coaching',
+          onPress: handleOpenWebPlatform,
+          color: '#8B5CF6',
+        },
+      ],
+    },
+    {
+      title: 'Preferences',
+      items: [
+        {
+          icon: 'notifications-outline',
+          title: 'Notifications',
+          subtitle: 'Manage your notification preferences',
+          onPress: () => Alert.alert('Coming Soon', 'Notification settings will be available in a future update.'),
+          color: '#F59E0B',
+        },
+        {
+          icon: 'location-outline',
+          title: 'Job Preferences',
+          subtitle: 'Set your preferred job types and locations',
+          onPress: handleOpenWebPlatform,
+          color: '#EF4444',
+        },
+      ],
+    },
+    {
+      title: 'Support',
+      items: [
+        {
+          icon: 'help-circle-outline',
+          title: 'Help & Support',
+          subtitle: 'Get help and contact support',
+          onPress: () => Alert.alert('Support', 'For support, please visit the web platform or email support@directapply.com'),
+          color: '#6B7280',
+        },
+        {
+          icon: 'information-circle-outline',
+          title: 'About',
+          subtitle: 'App version and information',
+          onPress: () => Alert.alert('DirectApply Mobile', 'Version 1.0.0\n\nA mobile companion app for quick job discovery and application.'),
+          color: '#6B7280',
+        },
+      ],
+    },
+  ];
+
+  const renderProfileSection = (section: typeof profileSections[0]) => (
+    <View key={section.title} style={styles.section}>
+      <Text style={styles.sectionTitle}>{section.title}</Text>
+      {section.items.map((item, index) => (
+        <TouchableOpacity
+          key={index}
+          style={styles.profileItem}
+          onPress={item.onPress}
+          activeOpacity={0.7}
+        >
+          <View style={styles.itemLeft}>
+            <View style={[styles.iconContainer, { backgroundColor: `${item.color}15` }]}>
+              <Ionicons name={item.icon as any} size={20} color={item.color} />
+            </View>
+            <View style={styles.itemContent}>
+              <Text style={styles.itemTitle}>{item.title}</Text>
+              <Text style={styles.itemSubtitle}>{item.subtitle}</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
+        {/* Header */}
+        <LinearGradient
+          colors={['#FF6B35', '#F7931E']}
+          style={styles.header}
+        >
           <View style={styles.profileInfo}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>
@@ -56,8 +155,17 @@ const ProfileScreen: React.FC = () => {
               <Text style={styles.userEmail}>{user?.email}</Text>
             </View>
           </View>
-        </View>
+          
+          <TouchableOpacity 
+            style={styles.editButton} 
+            onPress={handleOpenWebPlatform}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="create-outline" size={20} color="#FF6B35" />
+          </TouchableOpacity>
+        </LinearGradient>
 
+        {/* Quick Stats */}
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>12</Text>
@@ -75,51 +183,20 @@ const ProfileScreen: React.FC = () => {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <TouchableOpacity style={styles.profileItem} onPress={handleOpenWebPlatform}>
-            <View style={styles.itemLeft}>
-              <View style={styles.iconContainer}>
-                <Text style={styles.iconText}>🌐</Text>
-              </View>
-              <View style={styles.itemContent}>
-                <Text style={styles.itemTitle}>Edit Full Profile</Text>
-                <Text style={styles.itemSubtitle}>Open web platform</Text>
-              </View>
-            </View>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
+        {/* Profile Sections */}
+        {profileSections.map(renderProfileSection)}
 
-          <TouchableOpacity style={styles.profileItem} onPress={handleOpenWebPlatform}>
-            <View style={styles.itemLeft}>
-              <View style={styles.iconContainer}>
-                <Text style={styles.iconText}>📊</Text>
-              </View>
-              <View style={styles.itemContent}>
-                <Text style={styles.itemTitle}>CV Analysis</Text>
-                <Text style={styles.itemSubtitle}>View detailed insights</Text>
-              </View>
-            </View>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.profileItem} onPress={handleOpenWebPlatform}>
-            <View style={styles.itemLeft}>
-              <View style={styles.iconContainer}>
-                <Text style={styles.iconText}>🎯</Text>
-              </View>
-              <View style={styles.itemContent}>
-                <Text style={styles.itemTitle}>Interview Coach</Text>
-                <Text style={styles.itemSubtitle}>Practice interviews</Text>
-              </View>
-            </View>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <Text style={styles.signOutText}>🚪 Sign Out</Text>
+        {/* Sign Out Button */}
+        <TouchableOpacity 
+          style={styles.signOutButton} 
+          onPress={handleSignOut}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+          <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
 
+        {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
             For full features, visit the DirectApply web platform
@@ -136,63 +213,91 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8F9FA',
   },
   header: {
-    padding: 20,
-    backgroundColor: 'white',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 24,
     marginBottom: 20,
   },
   profileInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
   avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#FF6B35',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 15,
+    marginRight: 16,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   avatarText: {
     color: 'white',
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '700',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
   userInfo: {
     flex: 1,
   },
   userName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1F2937',
+    fontSize: 24,
+    fontWeight: '700',
+    color: 'white',
     marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
   userEmail: {
     fontSize: 14,
-    color: '#6B7280',
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  editButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'white',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   statsContainer: {
     flexDirection: 'row',
     backgroundColor: 'white',
     marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 16,
-    padding: 20,
+    marginBottom: 24,
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
   statItem: {
     flex: 1,
     alignItems: 'center',
   },
   statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '700',
     color: '#1F2937',
     marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
   statLabel: {
     fontSize: 12,
     color: '#6B7280',
-    fontWeight: '500',
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   statDivider: {
     width: 1,
@@ -200,7 +305,15 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
   },
   section: {
-    marginBottom: 20,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 16,
+    marginHorizontal: 20,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   profileItem: {
     flexDirection: 'row',
@@ -210,8 +323,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     marginHorizontal: 20,
-    marginBottom: 1,
-    borderRadius: 12,
+    marginBottom: 2,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   itemLeft: {
     flexDirection: 'row',
@@ -219,57 +337,63 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FEF3C7',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 15,
-  },
-  iconText: {
-    fontSize: 20,
+    marginRight: 16,
   },
   itemContent: {
     flex: 1,
   },
   itemTitle: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#1F2937',
     marginBottom: 2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   itemSubtitle: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#6B7280',
-  },
-  chevron: {
-    fontSize: 20,
-    color: '#9CA3AF',
+    lineHeight: 16,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   signOutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: 'white',
     marginHorizontal: 20,
-    marginTop: 20,
+    marginTop: 24,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#FEE2E2',
-    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   signOutText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#EF4444',
+    marginLeft: 8,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   footer: {
-    padding: 20,
+    padding: 24,
     alignItems: 'center',
   },
   footerText: {
     fontSize: 12,
     color: '#9CA3AF',
     textAlign: 'center',
+    lineHeight: 16,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
 });
 
