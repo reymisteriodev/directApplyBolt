@@ -75,7 +75,7 @@ const LandingPage: React.FC = () => {
               <a href="#how-it-works" className="text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium">How It Works</a>
               <a href="#pricing" className="text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium">Pricing</a>
               
-              {/* Job Seeker CTAs - SIMPLE LINKS */}
+              {/* Job Seeker CTAs - SIMPLE NAVIGATION LINKS ONLY */}
               <div className="flex items-center space-x-4">
                 <Link 
                   to="/seeker/login" 
@@ -186,6 +186,7 @@ const LandingPage: React.FC = () => {
               Get matched with opportunities that actually hire.
             </motion.p>
             
+            {/* HERO CTA BUTTONS - SIMPLE NAVIGATION LINKS ONLY */}
             <motion.div 
               className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16"
               initial={{ opacity: 0, y: 40 }}
