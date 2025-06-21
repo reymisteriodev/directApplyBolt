@@ -18,7 +18,9 @@ import {
   ThumbsUp,
   Share2,
   Bookmark,
-  Flag
+  Flag,
+  Database,
+  AlertCircle
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -59,27 +61,158 @@ const CommunityForum: React.FC = () => {
   const [comments, setComments] = useState<{ [postId: string]: Comment[] }>({});
   const [newComments, setNewComments] = useState<{ [postId: string]: string }>({});
   const [filter, setFilter] = useState('recent');
+  const [databaseError, setDatabaseError] = useState<string | null>(null);
+  const [isCreatingTables, setIsCreatingTables] = useState(false);
 
   useEffect(() => {
     loadPosts();
   }, [filter]);
 
+  const createDatabaseTables = async () => {
+    setIsCreatingTables(true);
+    try {
+      console.log('🔧 Creating database tables...');
+      
+      // Create posts table
+      const { error: postsError } = await supabase.rpc('exec_sql', {
+        sql: `
+          -- Posts table
+          CREATE TABLE IF NOT EXISTS posts (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+            content text NOT NULL,
+            created_at timestamptz DEFAULT now(),
+            updated_at timestamptz DEFAULT now(),
+            like_count integer DEFAULT 0,
+            comment_count integer DEFAULT 0
+          );
+
+          -- Comments table
+          CREATE TABLE IF NOT EXISTS comments (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            post_id uuid REFERENCES posts(id) ON DELETE CASCADE NOT NULL,
+            user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+            content text NOT NULL,
+            created_at timestamptz DEFAULT now(),
+            updated_at timestamptz DEFAULT now(),
+            parent_comment_id uuid REFERENCES comments(id) ON DELETE CASCADE
+          );
+
+          -- Post likes table
+          CREATE TABLE IF NOT EXISTS post_likes (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            post_id uuid REFERENCES posts(id) ON DELETE CASCADE NOT NULL,
+            user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+            created_at timestamptz DEFAULT now(),
+            UNIQUE(post_id, user_id)
+          );
+
+          -- Enable RLS
+          ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
+          ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
+          ALTER TABLE post_likes ENABLE ROW LEVEL SECURITY;
+        `
+      });
+
+      if (postsError) {
+        console.error('❌ Error creating tables:', postsError);
+        throw postsError;
+      }
+
+      // Create policies
+      const { error: policiesError } = await supabase.rpc('exec_sql', {
+        sql: `
+          -- Posts policies
+          DROP POLICY IF EXISTS "Anyone can read posts" ON posts;
+          CREATE POLICY "Anyone can read posts"
+            ON posts FOR SELECT
+            TO authenticated
+            USING (true);
+
+          DROP POLICY IF EXISTS "Users can create posts" ON posts;
+          CREATE POLICY "Users can create posts"
+            ON posts FOR INSERT
+            TO authenticated
+            WITH CHECK (auth.uid() = user_id);
+
+          -- Comments policies
+          DROP POLICY IF EXISTS "Anyone can read comments" ON comments;
+          CREATE POLICY "Anyone can read comments"
+            ON comments FOR SELECT
+            TO authenticated
+            USING (true);
+
+          DROP POLICY IF EXISTS "Users can create comments" ON comments;
+          CREATE POLICY "Users can create comments"
+            ON comments FOR INSERT
+            TO authenticated
+            WITH CHECK (auth.uid() = user_id);
+
+          -- Post likes policies
+          DROP POLICY IF EXISTS "Anyone can read post likes" ON post_likes;
+          CREATE POLICY "Anyone can read post likes"
+            ON post_likes FOR SELECT
+            TO authenticated
+            USING (true);
+
+          DROP POLICY IF EXISTS "Users can like posts" ON post_likes;
+          CREATE POLICY "Users can like posts"
+            ON post_likes FOR INSERT
+            TO authenticated
+            WITH CHECK (auth.uid() = user_id);
+
+          DROP POLICY IF EXISTS "Users can unlike posts" ON post_likes;
+          CREATE POLICY "Users can unlike posts"
+            ON post_likes FOR DELETE
+            TO authenticated
+            USING (auth.uid() = user_id);
+        `
+      });
+
+      if (policiesError) {
+        console.warn('⚠️ Some policies may not have been created:', policiesError);
+      }
+
+      console.log('✅ Database tables created successfully');
+      setDatabaseError(null);
+      toast.success('Database setup complete! You can now use the forum.');
+      
+      // Try loading posts again
+      await loadPosts();
+    } catch (error) {
+      console.error('💥 Error creating database tables:', error);
+      toast.error('Failed to set up database. Please try again.');
+    } finally {
+      setIsCreatingTables(false);
+    }
+  };
+
   const loadPosts = async () => {
     try {
       setLoading(true);
+      setDatabaseError(null);
       console.log('🔄 Loading posts from Supabase...');
       
-      // Test Supabase connection first
+      // Test if posts table exists by trying to query it
       const { data: testData, error: testError } = await supabase
         .from('posts')
         .select('count', { count: 'exact', head: true });
 
       if (testError) {
-        console.error('❌ Supabase connection test failed:', testError);
+        console.error('❌ Database error:', testError);
+        
+        // Check if it's a table doesn't exist error
+        if (testError.message?.includes('relation "public.posts" does not exist') || 
+            testError.message?.includes('table "posts" does not exist')) {
+          setDatabaseError('Database tables not found. The Community Forum needs to be set up first.');
+          setLoading(false);
+          return;
+        }
+        
         throw new Error(`Database connection failed: ${testError.message}`);
       }
 
-      console.log('✅ Supabase connection successful');
+      console.log('✅ Database connection successful');
 
       // Get posts with proper ordering
       let query = supabase
@@ -176,9 +309,7 @@ const CommunityForum: React.FC = () => {
       setPosts(formattedPosts);
     } catch (error) {
       console.error('💥 Error loading posts:', error);
-      toast.error(`Failed to load posts: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      
-      // Set empty posts array on error to show empty state
+      setDatabaseError(`Failed to load posts: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setPosts([]);
     } finally {
       setLoading(false);
@@ -479,6 +610,42 @@ const CommunityForum: React.FC = () => {
             >
               Sign In
             </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show database setup required message
+  if (databaseError) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header userType="seeker" isAuthenticated={true} />
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center py-12">
+            <Database className="w-16 h-16 text-orange-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Community Forum Setup Required</h3>
+            <p className="text-gray-600 mb-6">{databaseError}</p>
+            <button
+              onClick={createDatabaseTables}
+              disabled={isCreatingTables}
+              className="bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 mx-auto"
+            >
+              {isCreatingTables ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Setting up...</span>
+                </>
+              ) : (
+                <>
+                  <Database className="w-4 h-4" />
+                  <span>Set Up Forum Database</span>
+                </>
+              )}
+            </button>
+            <p className="text-sm text-gray-500 mt-4">
+              This will create the necessary database tables for the Community Forum.
+            </p>
           </div>
         </div>
       </div>
