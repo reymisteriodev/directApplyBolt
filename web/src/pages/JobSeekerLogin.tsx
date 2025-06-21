@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, Mail, Lock, Eye, EyeOff, AlertCircle, Clock } from 'lucide-react';
+import { Search, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Header from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,12 +11,6 @@ const JobSeekerLogin: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
-  const [justRegistered, setJustRegistered] = useState(false);
-  const [rateLimitInfo, setRateLimitInfo] = useState<{ isRateLimited: boolean; waitTime: number; message: string }>({
-    isRateLimited: false,
-    waitTime: 0,
-    message: ''
-  });
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -28,228 +22,99 @@ const JobSeekerLogin: React.FC = () => {
   const { signUp, signIn, user, hasCompletedCV, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Handle redirect ONLY for login attempts, NOT for registrations
+  // Simple redirect logic - only redirect if user exists and we're not loading
   useEffect(() => {
-    // Only redirect if:
-    // 1. We have a user
-    // 2. Auth is not loading
-    // 3. User didn't just register (they should stay on login page)
-    // 4. This is actually a login (not a registration that created a user)
-    if (user && !authLoading && !justRegistered && isLogin) {
-      console.log('Redirecting user after login. hasCompletedCV:', hasCompletedCV);
+    if (user && !authLoading) {
+      console.log('User logged in, redirecting. hasCompletedCV:', hasCompletedCV);
       
-      if (hasCompletedCV) {
-        // User has CV, go to dashboard
-        navigate('/seeker/dashboard');
-      } else {
-        // First time login, go to welcome page
-        navigate('/seeker/cv-welcome');
-      }
+      // Simple timeout to ensure state is stable
+      setTimeout(() => {
+        if (hasCompletedCV) {
+          navigate('/seeker/dashboard');
+        } else {
+          navigate('/seeker/cv-welcome');
+        }
+      }, 100);
     }
-  }, [user, authLoading, justRegistered, hasCompletedCV, navigate, isLogin]);
+  }, [user, hasCompletedCV, authLoading, navigate]);
 
-  // Clear states when switching between login/signup
+  // Clear error when switching modes
   useEffect(() => {
     setLoginError('');
-    setRateLimitInfo({ isRateLimited: false, waitTime: 0, message: '' });
-    // Don't reset justRegistered when switching to login mode after registration
-    if (!isLogin) {
-      setJustRegistered(false);
-    }
   }, [isLogin]);
-
-  // Rate limit countdown effect
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    
-    if (rateLimitInfo.isRateLimited && rateLimitInfo.waitTime > 0) {
-      interval = setInterval(() => {
-        setRateLimitInfo(prev => {
-          const newWaitTime = prev.waitTime - 1;
-          if (newWaitTime <= 0) {
-            return { isRateLimited: false, waitTime: 0, message: '' };
-          }
-          return {
-            ...prev,
-            waitTime: newWaitTime,
-            message: `Please wait ${newWaitTime} seconds before trying again.`
-          };
-        });
-      }, 1000);
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [rateLimitInfo.isRateLimited, rateLimitInfo.waitTime]);
-
-  const extractWaitTimeFromError = (errorMessage: string): number => {
-    const match = errorMessage.match(/after (\d+) seconds?/);
-    return match ? parseInt(match[1], 10) : 60;
-  };
-
-  const validateForm = () => {
-    // Clear previous errors
-    setLoginError('');
-
-    if (isLogin) {
-      // Login validation
-      if (!formData.email.trim()) {
-        setLoginError('Please enter your email address.');
-        return false;
-      }
-      if (!formData.password.trim()) {
-        setLoginError('Please enter your password.');
-        return false;
-      }
-      if (!formData.email.includes('@')) {
-        setLoginError('Please enter a valid email address.');
-        return false;
-      }
-    } else {
-      // Registration validation
-      if (!formData.firstName.trim()) {
-        setLoginError('Please enter your first name.');
-        return false;
-      }
-      if (!formData.lastName.trim()) {
-        setLoginError('Please enter your last name.');
-        return false;
-      }
-      if (!formData.email.trim()) {
-        setLoginError('Please enter your email address.');
-        return false;
-      }
-      if (!formData.email.includes('@')) {
-        setLoginError('Please enter a valid email address.');
-        return false;
-      }
-      if (!formData.password.trim()) {
-        setLoginError('Please enter a password.');
-        return false;
-      }
-      if (formData.password.length < 6) {
-        setLoginError('Password must be at least 6 characters long.');
-        return false;
-      }
-      if (!formData.confirmPassword.trim()) {
-        setLoginError('Please confirm your password.');
-        return false;
-      }
-      if (formData.password !== formData.confirmPassword) {
-        setLoginError('Passwords do not match.');
-        return false;
-      }
-    }
-
-    return true;
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate form before proceeding
-    if (!validateForm()) {
-      return;
-    }
-    
-    if (rateLimitInfo.isRateLimited) {
-      toast.error(`Please wait ${rateLimitInfo.waitTime} seconds before trying again.`);
+    // Basic validation
+    if (!formData.email || !formData.password) {
+      setLoginError('Please fill in all required fields');
       return;
     }
 
     setLoading(true);
     setLoginError('');
-    setRateLimitInfo({ isRateLimited: false, waitTime: 0, message: '' });
 
     try {
       if (isLogin) {
         // Handle login
-        const { error } = await signIn(formData.email.trim(), formData.password);
+        const { error } = await signIn(formData.email, formData.password);
         
         if (error) {
-          if (error.message?.includes('Invalid login credentials') || 
-              error.message?.includes('invalid_credentials')) {
-            setLoginError('The email or password you entered is incorrect. Please check your credentials and try again.');
-            toast.error('Invalid email or password');
-          } else if (error.message?.includes('Email not confirmed')) {
-            setLoginError('Please check your email and click the confirmation link before signing in.');
-            toast.error('Please confirm your email address');
-          } else if (error.message?.includes('Too many requests')) {
-            setLoginError('Too many login attempts. Please wait a few minutes before trying again.');
-            toast.error('Too many attempts. Please wait and try again.');
+          if (error.message?.includes('Invalid login credentials')) {
+            setLoginError('Invalid email or password. Please check your credentials.');
           } else {
-            setLoginError('Unable to sign in. Please try again or contact support if the problem persists.');
-            toast.error(error.message || 'Failed to sign in');
+            setLoginError(error.message || 'Failed to sign in');
           }
+          toast.error('Sign in failed');
           return;
         }
         
         toast.success('Welcome back!');
         // Redirect will be handled by useEffect
       } else {
-        // Handle registration - DO NOT navigate anywhere, just switch to login mode
-        const { error } = await signUp(formData.email.trim(), formData.password, {
-          first_name: formData.firstName.trim(),
-          last_name: formData.lastName.trim(),
+        // Handle registration
+        if (formData.password !== formData.confirmPassword) {
+          setLoginError('Passwords do not match');
+          return;
+        }
+
+        if (formData.password.length < 6) {
+          setLoginError('Password must be at least 6 characters');
+          return;
+        }
+
+        const { error } = await signUp(formData.email, formData.password, {
+          first_name: formData.firstName,
+          last_name: formData.lastName,
           user_type: 'seeker'
         });
         
         if (error) {
-          if (error.message?.includes('For security purposes, you can only request this after') ||
-              error.message?.includes('over_email_send_rate_limit') ||
-              error.status === 429) {
-            const waitTime = extractWaitTimeFromError(error.message);
-            setRateLimitInfo({
-              isRateLimited: true,
-              waitTime: waitTime,
-              message: `Please wait ${waitTime} seconds before trying again.`
-            });
-            toast.error(`Rate limit reached. Please wait ${waitTime} seconds before trying again.`);
-          } else if (error.message?.includes('User already registered')) {
-            toast.error('An account with this email already exists. Please sign in instead.');
+          if (error.message?.includes('User already registered')) {
+            setLoginError('An account with this email already exists. Please sign in instead.');
             setIsLogin(true);
           } else {
-            toast.error(error.message || 'Failed to create account');
+            setLoginError(error.message || 'Failed to create account');
           }
+          toast.error('Registration failed');
           return;
         }
         
-        // After successful registration:
-        // 1. Set justRegistered flag to prevent navigation
-        // 2. Switch to login mode
-        // 3. Show success message
-        // 4. Clear form but keep email
-        setJustRegistered(true);
-        toast.success('Account created successfully! Please sign in to continue.');
+        toast.success('Account created successfully! Please sign in.');
         setIsLogin(true);
         setFormData({
-          email: formData.email, // Keep the email for convenience
+          email: formData.email,
           password: '',
           confirmPassword: '',
           firstName: '',
           lastName: ''
         });
-        
-        // DO NOT NAVIGATE - stay on the same page
       }
     } catch (error: any) {
       console.error('Auth error:', error);
-      
-      if (error?.message?.includes('For security purposes, you can only request this after') ||
-          error?.message?.includes('over_email_send_rate_limit') ||
-          error?.status === 429) {
-        const waitTime = extractWaitTimeFromError(error.message || '');
-        setRateLimitInfo({
-          isRateLimited: true,
-          waitTime: waitTime,
-          message: `Please wait ${waitTime} seconds before trying again.`
-        });
-        toast.error(`Rate limit reached. Please wait ${waitTime} seconds before trying again.`);
-      } else {
-        setLoginError('An unexpected error occurred. Please try again.');
-        toast.error('An unexpected error occurred. Please try again.');
-      }
+      setLoginError('An unexpected error occurred. Please try again.');
+      toast.error('An unexpected error occurred');
     } finally {
       setLoading(false);
     }
@@ -266,24 +131,17 @@ const JobSeekerLogin: React.FC = () => {
     });
   };
 
-  const isLoadingState = loading || authLoading;
-  const isFormDisabled = isLoadingState || rateLimitInfo.isRateLimited;
-
-  // Check if form is valid for enabling/disabling submit button
-  const isFormValid = () => {
-    if (isLogin) {
-      return formData.email.trim() && formData.password.trim() && formData.email.includes('@');
-    } else {
-      return formData.firstName.trim() && 
-             formData.lastName.trim() && 
-             formData.email.trim() && 
-             formData.email.includes('@') &&
-             formData.password.trim() && 
-             formData.password.length >= 6 &&
-             formData.confirmPassword.trim() &&
-             formData.password === formData.confirmPassword;
-    }
-  };
+  // Show a simple loading state only while auth is initializing
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
@@ -315,42 +173,9 @@ const JobSeekerLogin: React.FC = () => {
             </p>
           </div>
 
-          {/* Success message for just registered users */}
-          {justRegistered && isLogin && (
-            <motion.div 
-              className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <p className="text-sm text-green-800 font-medium">
-                ✅ Account created successfully! Please sign in to continue.
-              </p>
-            </motion.div>
-          )}
-
           {/* Form */}
           <div className="bg-white py-8 px-6 shadow-xl rounded-xl border border-gray-100">
-            {/* Rate Limit Warning */}
-            {rateLimitInfo.isRateLimited && (
-              <motion.div 
-                className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start space-x-3"
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <Clock className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-amber-800">Rate limit reached</p>
-                  <p className="text-sm text-amber-700 mt-1">{rateLimitInfo.message}</p>
-                  <div className="mt-2 text-xs text-amber-600">
-                    <p>This is a security measure to prevent spam. Please wait before trying again.</p>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* Login Error Display */}
+            {/* Error Display */}
             {loginError && (
               <motion.div 
                 className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-3"
@@ -359,25 +184,16 @@ const JobSeekerLogin: React.FC = () => {
                 transition={{ duration: 0.3 }}
               >
                 <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm text-red-700">{loginError}</p>
-                  {loginError.includes('incorrect') && (
-                    <div className="mt-2 text-xs text-red-600">
-                      <p>• Make sure your email address is spelled correctly</p>
-                      <p>• Check that your password is entered correctly (passwords are case-sensitive)</p>
-                      <p>• If you don't have an account yet, click "Sign up" below</p>
-                    </div>
-                  )}
-                </div>
+                <p className="text-sm text-red-700">{loginError}</p>
               </motion.div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+            <form onSubmit={handleSubmit} className="space-y-6">
               {!isLogin && (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-2">
-                      First Name *
+                      First Name
                     </label>
                     <input
                       id="firstName"
@@ -386,14 +202,13 @@ const JobSeekerLogin: React.FC = () => {
                       required={!isLogin}
                       value={formData.firstName}
                       onChange={handleInputChange}
-                      disabled={isFormDisabled}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
                       placeholder="John"
                     />
                   </div>
                   <div>
                     <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-2">
-                      Last Name *
+                      Last Name
                     </label>
                     <input
                       id="lastName"
@@ -402,8 +217,7 @@ const JobSeekerLogin: React.FC = () => {
                       required={!isLogin}
                       value={formData.lastName}
                       onChange={handleInputChange}
-                      disabled={isFormDisabled}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
                       placeholder="Doe"
                     />
                   </div>
@@ -412,7 +226,7 @@ const JobSeekerLogin: React.FC = () => {
 
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Address *
+                  Email Address
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -425,12 +239,7 @@ const JobSeekerLogin: React.FC = () => {
                     required
                     value={formData.email}
                     onChange={handleInputChange}
-                    disabled={isFormDisabled}
-                    className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                      loginError && loginError.includes('incorrect') 
-                        ? 'border-red-300 bg-red-50' 
-                        : 'border-gray-300'
-                    }`}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
                     placeholder="Enter your email"
                   />
                 </div>
@@ -438,7 +247,7 @@ const JobSeekerLogin: React.FC = () => {
 
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                  Password *
+                  Password
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -451,20 +260,13 @@ const JobSeekerLogin: React.FC = () => {
                     required
                     value={formData.password}
                     onChange={handleInputChange}
-                    disabled={isFormDisabled}
-                    className={`w-full pl-10 pr-10 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                      loginError && loginError.includes('incorrect') 
-                        ? 'border-red-300 bg-red-50' 
-                        : 'border-gray-300'
-                    }`}
+                    className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
                     placeholder="Enter your password"
-                    minLength={isLogin ? undefined : 6}
                   />
                   <button
                     type="button"
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center disabled:opacity-50"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
                     onClick={() => setShowPassword(!showPassword)}
-                    disabled={isFormDisabled}
                   >
                     {showPassword ? (
                       <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
@@ -473,15 +275,12 @@ const JobSeekerLogin: React.FC = () => {
                     )}
                   </button>
                 </div>
-                {!isLogin && (
-                  <p className="mt-1 text-xs text-gray-500">Must be at least 6 characters</p>
-                )}
               </div>
 
               {!isLogin && (
                 <div>
                   <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                    Confirm Password *
+                    Confirm Password
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -494,8 +293,7 @@ const JobSeekerLogin: React.FC = () => {
                       required={!isLogin}
                       value={formData.confirmPassword}
                       onChange={handleInputChange}
-                      disabled={isFormDisabled}
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
                       placeholder="Confirm your password"
                     />
                   </div>
@@ -509,8 +307,7 @@ const JobSeekerLogin: React.FC = () => {
                       id="remember-me"
                       name="remember-me"
                       type="checkbox"
-                      disabled={isFormDisabled}
-                      className="h-4 w-4 text-orange-500 focus:ring-orange-500 border-gray-300 rounded disabled:opacity-50"
+                      className="h-4 w-4 text-orange-500 focus:ring-orange-500 border-gray-300 rounded"
                     />
                     <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
                       Remember me
@@ -524,20 +321,13 @@ const JobSeekerLogin: React.FC = () => {
 
               <button
                 type="submit"
-                disabled={isFormDisabled || !isFormValid()}
+                disabled={loading}
                 className="w-full bg-orange-500 text-white py-2 px-4 rounded-lg hover:bg-orange-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isLoadingState ? (
+                {loading ? (
                   <div className="flex items-center justify-center space-x-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>
-                      {loading ? 'Please wait...' : 'Signing in...'}
-                    </span>
-                  </div>
-                ) : rateLimitInfo.isRateLimited ? (
-                  <div className="flex items-center justify-center space-x-2">
-                    <Clock className="w-4 h-4" />
-                    <span>Wait {rateLimitInfo.waitTime}s</span>
+                    <span>Please wait...</span>
                   </div>
                 ) : (
                   isLogin ? 'Sign In' : 'Create Account'
@@ -555,8 +345,7 @@ const JobSeekerLogin: React.FC = () => {
 
               <button
                 type="button"
-                disabled={isFormDisabled}
-                className="w-full bg-white text-gray-700 border border-gray-300 py-2 px-4 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors font-medium flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-white text-gray-700 border border-gray-300 py-2 px-4 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors font-medium flex items-center justify-center space-x-2"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -573,8 +362,7 @@ const JobSeekerLogin: React.FC = () => {
                 {isLogin ? "Don't have an account? " : "Already have an account? "}
                 <button
                   onClick={() => setIsLogin(!isLogin)}
-                  disabled={isFormDisabled}
-                  className="text-orange-600 hover:text-orange-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="text-orange-600 hover:text-orange-700 font-medium"
                 >
                   {isLogin ? 'Sign up' : 'Sign in'}
                 </button>
