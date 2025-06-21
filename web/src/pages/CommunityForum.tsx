@@ -59,208 +59,17 @@ const CommunityForum: React.FC = () => {
   const [comments, setComments] = useState<{ [postId: string]: Comment[] }>({});
   const [newComments, setNewComments] = useState<{ [postId: string]: string }>({});
   const [filter, setFilter] = useState('recent');
-  const [isInitializing, setIsInitializing] = useState(false);
 
   useEffect(() => {
     if (user) {
-      initializeAndLoadPosts();
+      loadPosts();
     }
   }, [user, filter]);
-
-  const initializeAndLoadPosts = async () => {
-    try {
-      setLoading(true);
-      
-      // First, try to load posts to see if tables exist
-      const { data: testData, error: testError } = await supabase
-        .from('posts')
-        .select('count', { count: 'exact', head: true });
-
-      if (testError && testError.message?.includes('relation "public.posts" does not exist')) {
-        // Tables don't exist, create them automatically
-        console.log('🔧 Database tables not found, creating them automatically...');
-        setIsInitializing(true);
-        
-        try {
-          // Apply the migration that creates the forum tables
-          const { error: migrationError } = await supabase.rpc('exec_sql', {
-            sql: `
-              -- Posts table
-              CREATE TABLE IF NOT EXISTS posts (
-                id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-                user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-                content text NOT NULL,
-                created_at timestamptz DEFAULT now(),
-                updated_at timestamptz DEFAULT now(),
-                like_count integer DEFAULT 0,
-                comment_count integer DEFAULT 0
-              );
-
-              -- Comments table
-              CREATE TABLE IF NOT EXISTS comments (
-                id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-                post_id uuid REFERENCES posts(id) ON DELETE CASCADE NOT NULL,
-                user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-                content text NOT NULL,
-                created_at timestamptz DEFAULT now(),
-                updated_at timestamptz DEFAULT now(),
-                parent_comment_id uuid REFERENCES comments(id) ON DELETE CASCADE
-              );
-
-              -- Post likes table
-              CREATE TABLE IF NOT EXISTS post_likes (
-                id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-                post_id uuid REFERENCES posts(id) ON DELETE CASCADE NOT NULL,
-                user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-                created_at timestamptz DEFAULT now(),
-                UNIQUE(post_id, user_id)
-              );
-
-              -- Enable RLS
-              ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
-              ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
-              ALTER TABLE post_likes ENABLE ROW LEVEL SECURITY;
-
-              -- Posts policies
-              DROP POLICY IF EXISTS "Anyone can read posts" ON posts;
-              CREATE POLICY "Anyone can read posts"
-                ON posts FOR SELECT
-                TO authenticated
-                USING (true);
-
-              DROP POLICY IF EXISTS "Users can create posts" ON posts;
-              CREATE POLICY "Users can create posts"
-                ON posts FOR INSERT
-                TO authenticated
-                WITH CHECK (auth.uid() = user_id);
-
-              -- Comments policies
-              DROP POLICY IF EXISTS "Anyone can read comments" ON comments;
-              CREATE POLICY "Anyone can read comments"
-                ON comments FOR SELECT
-                TO authenticated
-                USING (true);
-
-              DROP POLICY IF EXISTS "Users can create comments" ON comments;
-              CREATE POLICY "Users can create comments"
-                ON comments FOR INSERT
-                TO authenticated
-                WITH CHECK (auth.uid() = user_id);
-
-              -- Post likes policies
-              DROP POLICY IF EXISTS "Anyone can read post likes" ON post_likes;
-              CREATE POLICY "Anyone can read post likes"
-                ON post_likes FOR SELECT
-                TO authenticated
-                USING (true);
-
-              DROP POLICY IF EXISTS "Users can like posts" ON post_likes;
-              CREATE POLICY "Users can like posts"
-                ON post_likes FOR INSERT
-                TO authenticated
-                WITH CHECK (auth.uid() = user_id);
-
-              DROP POLICY IF EXISTS "Users can unlike posts" ON post_likes;
-              CREATE POLICY "Users can unlike posts"
-                ON post_likes FOR DELETE
-                TO authenticated
-                USING (auth.uid() = user_id);
-
-              -- Indexes for performance
-              CREATE INDEX IF NOT EXISTS posts_created_at_idx ON posts(created_at DESC);
-              CREATE INDEX IF NOT EXISTS posts_user_id_idx ON posts(user_id);
-              CREATE INDEX IF NOT EXISTS comments_post_id_idx ON comments(post_id);
-              CREATE INDEX IF NOT EXISTS post_likes_post_id_idx ON post_likes(post_id);
-            `
-          });
-
-          if (migrationError) {
-            console.error('❌ Migration error:', migrationError);
-            // If migration fails, show mock data instead of breaking
-            loadMockPosts();
-            return;
-          }
-
-          console.log('✅ Database tables created successfully');
-        } catch (error) {
-          console.error('💥 Error creating tables:', error);
-          // Fallback to mock data if database setup fails
-          loadMockPosts();
-          return;
-        } finally {
-          setIsInitializing(false);
-        }
-      }
-
-      // Now load the actual posts
-      await loadPosts();
-    } catch (error) {
-      console.error('💥 Error initializing forum:', error);
-      // Fallback to mock data
-      loadMockPosts();
-    }
-  };
-
-  const loadMockPosts = () => {
-    console.log('📝 Loading mock posts for demonstration');
-    const mockPosts: Post[] = [
-      {
-        id: 'mock-1',
-        content: "Just landed my dream job at a tech startup! 🎉 The interview process was intense but the DirectApply platform really helped me prepare. Thanks to everyone in this community for the support and advice!",
-        created_at: new Date(Date.now() - 3600000).toISOString(),
-        updated_at: new Date(Date.now() - 3600000).toISOString(),
-        like_count: 24,
-        comment_count: 8,
-        user_id: 'mock-user-1',
-        user_name: 'Sarah Chen',
-        user_email: 'sarah@example.com',
-        is_liked: false
-      },
-      {
-        id: 'mock-2',
-        content: "Has anyone here successfully negotiated their salary? I have an offer but I think I can get more. Looking for tips on how to approach this conversation with HR. 💼",
-        created_at: new Date(Date.now() - 7200000).toISOString(),
-        updated_at: new Date(Date.now() - 7200000).toISOString(),
-        like_count: 12,
-        comment_count: 15,
-        user_id: 'mock-user-2',
-        user_name: 'Alex Rodriguez',
-        user_email: 'alex@example.com',
-        is_liked: true
-      },
-      {
-        id: 'mock-3',
-        content: "Quick tip for everyone: Always research the company culture before your interview. I just had an amazing conversation with my interviewer about their values and it really set me apart from other candidates. 🌟",
-        created_at: new Date(Date.now() - 10800000).toISOString(),
-        updated_at: new Date(Date.now() - 10800000).toISOString(),
-        like_count: 31,
-        comment_count: 6,
-        user_id: 'mock-user-3',
-        user_name: 'Jordan Kim',
-        user_email: 'jordan@example.com',
-        is_liked: false
-      },
-      {
-        id: 'mock-4',
-        content: "Feeling a bit discouraged after 3 rejections this week. How do you all stay motivated during the job search? Any advice would be appreciated. 😔",
-        created_at: new Date(Date.now() - 14400000).toISOString(),
-        updated_at: new Date(Date.now() - 14400000).toISOString(),
-        like_count: 18,
-        comment_count: 22,
-        user_id: 'mock-user-4',
-        user_name: 'Taylor Johnson',
-        user_email: 'taylor@example.com',
-        is_liked: false
-      }
-    ];
-
-    setPosts(mockPosts);
-    setLoading(false);
-  };
 
   const loadPosts = async () => {
     try {
       console.log('🔄 Loading posts from database...');
+      setLoading(true);
       
       // Get posts with proper ordering
       let query = supabase
@@ -285,6 +94,12 @@ const CommunityForum: React.FC = () => {
 
       if (error) {
         console.error('❌ Error loading posts:', error);
+        // If tables don't exist, show mock data for better UX
+        if (error.message?.includes('relation') && error.message?.includes('does not exist')) {
+          console.log('📝 Database tables not found, showing mock data');
+          loadMockPosts();
+          return;
+        }
         throw error;
       }
 
@@ -361,6 +176,63 @@ const CommunityForum: React.FC = () => {
     }
   };
 
+  const loadMockPosts = () => {
+    console.log('📝 Loading mock posts for demonstration');
+    const mockPosts: Post[] = [
+      {
+        id: 'mock-1',
+        content: "Just landed my dream job at a tech startup! 🎉 The interview process was intense but the DirectApply platform really helped me prepare. Thanks to everyone in this community for the support and advice!",
+        created_at: new Date(Date.now() - 3600000).toISOString(),
+        updated_at: new Date(Date.now() - 3600000).toISOString(),
+        like_count: 24,
+        comment_count: 8,
+        user_id: 'mock-user-1',
+        user_name: 'Sarah Chen',
+        user_email: 'sarah@example.com',
+        is_liked: false
+      },
+      {
+        id: 'mock-2',
+        content: "Has anyone here successfully negotiated their salary? I have an offer but I think I can get more. Looking for tips on how to approach this conversation with HR. 💼",
+        created_at: new Date(Date.now() - 7200000).toISOString(),
+        updated_at: new Date(Date.now() - 7200000).toISOString(),
+        like_count: 12,
+        comment_count: 15,
+        user_id: 'mock-user-2',
+        user_name: 'Alex Rodriguez',
+        user_email: 'alex@example.com',
+        is_liked: true
+      },
+      {
+        id: 'mock-3',
+        content: "Quick tip for everyone: Always research the company culture before your interview. I just had an amazing conversation with my interviewer about their values and it really set me apart from other candidates. 🌟",
+        created_at: new Date(Date.now() - 10800000).toISOString(),
+        updated_at: new Date(Date.now() - 10800000).toISOString(),
+        like_count: 31,
+        comment_count: 6,
+        user_id: 'mock-user-3',
+        user_name: 'Jordan Kim',
+        user_email: 'jordan@example.com',
+        is_liked: false
+      },
+      {
+        id: 'mock-4',
+        content: "Feeling a bit discouraged after 3 rejections this week. How do you all stay motivated during the job search? Any advice would be appreciated. 😔",
+        created_at: new Date(Date.now() - 14400000).toISOString(),
+        updated_at: new Date(Date.now() - 14400000).toISOString(),
+        like_count: 18,
+        comment_count: 22,
+        user_id: 'mock-user-4',
+        user_name: 'Taylor Johnson',
+        user_email: 'taylor@example.com',
+        is_liked: false
+      }
+    ];
+
+    setPosts(mockPosts);
+    setLoading(false);
+  };
+
   const getUserName = (cvData: any, userId: string) => {
     // First try to get name from CV data
     if (cvData?.personalInfo?.fullName) {
@@ -416,6 +288,10 @@ const CommunityForum: React.FC = () => {
 
       if (error) {
         console.error('❌ Error creating post:', error);
+        if (error.message?.includes('relation') && error.message?.includes('does not exist')) {
+          toast.error('Community forum is not set up yet. Please contact support.');
+          return;
+        }
         throw error;
       }
 
@@ -496,7 +372,12 @@ const CommunityForum: React.FC = () => {
             }
           : post
       ));
-      toast.error('Failed to update like');
+      
+      if (error.message?.includes('relation') && error.message?.includes('does not exist')) {
+        toast.error('Community forum is not set up yet. Please contact support.');
+      } else {
+        toast.error('Failed to update like');
+      }
     }
   };
 
@@ -512,9 +393,12 @@ const CommunityForum: React.FC = () => {
 
       if (error) {
         console.error('❌ Error loading comments:', error);
-        // Set empty comments array on error
-        setComments(prev => ({ ...prev, [postId]: [] }));
-        return;
+        if (error.message?.includes('relation') && error.message?.includes('does not exist')) {
+          // Set empty comments array for mock posts
+          setComments(prev => ({ ...prev, [postId]: [] }));
+          return;
+        }
+        throw error;
       }
 
       if (!commentsData || commentsData.length === 0) {
@@ -606,7 +490,13 @@ const CommunityForum: React.FC = () => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if (error.message?.includes('relation') && error.message?.includes('does not exist')) {
+          toast.error('Community forum is not set up yet. Please contact support.');
+          return;
+        }
+        throw error;
+      }
 
       setNewComments(prev => ({ ...prev, [postId]: '' }));
       
@@ -751,69 +641,54 @@ const CommunityForum: React.FC = () => {
           </div>
         </div>
 
-        {/* Initialization Loading */}
-        {isInitializing && (
-          <motion.div 
-            className="bg-white rounded-2xl border border-gray-200 p-8 mb-8 text-center"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Setting up Community Forum</h3>
-            <p className="text-gray-600">This will only take a moment...</p>
-          </motion.div>
-        )}
-
         {/* Create Post */}
-        {!isInitializing && (
-          <motion.div 
-            className="bg-white rounded-2xl border border-gray-200 p-6 mb-8 shadow-sm"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className="flex items-start space-x-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center">
-                <span className="text-white font-bold">
-                  {getInitials(getUserName(null, user.id))}
-                </span>
-              </div>
-              <div className="flex-1">
-                <textarea
-                  value={newPostContent}
-                  onChange={(e) => setNewPostContent(e.target.value)}
-                  placeholder="Share your thoughts, ask questions, or celebrate your wins..."
-                  className="w-full p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
-                  rows={3}
-                  maxLength={1000}
-                />
-                <div className="flex items-center justify-between mt-4">
-                  <div className="flex items-center space-x-4 text-sm text-gray-500">
-                    <span className="flex items-center space-x-1">
-                      <Sparkles className="w-4 h-4" />
-                      <span>Share your experience</span>
-                    </span>
-                    <span className={newPostContent.length > 900 ? 'text-red-500 font-medium' : ''}>
-                      {newPostContent.length}/1000
-                    </span>
-                  </div>
-                  <button
-                    onClick={handleCreatePost}
-                    disabled={!newPostContent.trim() || isPosting || newPostContent.length > 1000}
-                    className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-6 py-2 rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                  >
-                    {isPosting ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4" />
-                    )}
-                    <span>{isPosting ? 'Posting...' : 'Post'}</span>
-                  </button>
+        <motion.div 
+          className="bg-white rounded-2xl border border-gray-200 p-6 mb-8 shadow-sm"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <div className="flex items-start space-x-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center">
+              <span className="text-white font-bold">
+                {getInitials(getUserName(null, user.id))}
+              </span>
+            </div>
+            <div className="flex-1">
+              <textarea
+                value={newPostContent}
+                onChange={(e) => setNewPostContent(e.target.value)}
+                placeholder="Share your thoughts, ask questions, or celebrate your wins..."
+                className="w-full p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
+                rows={3}
+                maxLength={1000}
+              />
+              <div className="flex items-center justify-between mt-4">
+                <div className="flex items-center space-x-4 text-sm text-gray-500">
+                  <span className="flex items-center space-x-1">
+                    <Sparkles className="w-4 h-4" />
+                    <span>Share your experience</span>
+                  </span>
+                  <span className={newPostContent.length > 900 ? 'text-red-500 font-medium' : ''}>
+                    {newPostContent.length}/1000
+                  </span>
                 </div>
+                <button
+                  onClick={handleCreatePost}
+                  disabled={!newPostContent.trim() || isPosting || newPostContent.length > 1000}
+                  className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-6 py-2 rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                >
+                  {isPosting ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                  <span>{isPosting ? 'Posting...' : 'Post'}</span>
+                </button>
               </div>
             </div>
-          </motion.div>
-        )}
+          </div>
+        </motion.div>
 
         {/* Posts Feed */}
         <div className="space-y-6">
