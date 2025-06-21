@@ -8,9 +8,17 @@ import { useAuth } from '../contexts/AuthContext';
 
 const CVWelcomeGate: React.FC = () => {
   const navigate = useNavigate();
-  const { user, setHasCompletedCV, loading } = useAuth();
+  const { user, setHasCompletedCV, setHasSeenWelcome, loading } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+
+  // Mark welcome as seen when component mounts
+  React.useEffect(() => {
+    if (user && !loading) {
+      console.log('Marking welcome as seen for user:', user.id);
+      setHasSeenWelcome(true);
+    }
+  }, [user, loading, setHasSeenWelcome]);
 
   const parseFileContent = async (file: File): Promise<any> => {
     try {
@@ -186,6 +194,7 @@ const CVWelcomeGate: React.FC = () => {
             .from('user_profiles')
             .update({
               cv_data: cvData,
+              has_seen_welcome: true,
               updated_at: new Date().toISOString()
             })
             .eq('user_id', user.id);
@@ -203,6 +212,7 @@ const CVWelcomeGate: React.FC = () => {
             .insert({
               user_id: user.id,
               cv_data: cvData,
+              has_seen_welcome: true,
               updated_at: new Date().toISOString()
             });
 
