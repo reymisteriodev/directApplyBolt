@@ -130,28 +130,13 @@ const CommunityForum: React.FC = () => {
         }
       }
 
-      // Get user information
+      // Get user information for all post authors
       const userIds = [...new Set(postsData.map(p => p.user_id))];
-      
-      let profilesMap = new Map();
-      try {
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('user_profiles')
-          .select('user_id, cv_data')
-          .in('user_id', userIds);
-
-        if (!profilesError && profilesData) {
-          profilesData.forEach(profile => {
-            profilesMap.set(profile.user_id, profile.cv_data);
-          });
-        }
-      } catch (profilesError) {
-        console.warn('⚠️ Could not load user profiles:', profilesError);
-      }
+      const userInfoMap = await getUserInfoMap(userIds);
 
       // Format posts with user information
       const formattedPosts: Post[] = postsData.map(post => {
-        const userProfile = profilesMap.get(post.user_id);
+        const userInfo = userInfoMap.get(post.user_id);
         return {
           id: post.id,
           content: post.content,
@@ -160,8 +145,8 @@ const CommunityForum: React.FC = () => {
           like_count: post.like_count || 0,
           comment_count: post.comment_count || 0,
           user_id: post.user_id,
-          user_name: getUserName(userProfile, post.user_id),
-          user_email: userProfile?.personalInfo?.email || 'user@example.com',
+          user_name: userInfo?.name || `User ${post.user_id.slice(0, 8)}`,
+          user_email: userInfo?.email || 'user@example.com',
           is_liked: likedPostIds.has(post.id)
         };
       });
@@ -174,6 +159,65 @@ const CommunityForum: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getUserInfoMap = async (userIds: string[]) => {
+    const userInfoMap = new Map();
+
+    // Get user profiles from CV data
+    try {
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('user_profiles')
+        .select('user_id, cv_data')
+        .in('user_id', userIds);
+
+      if (!profilesError && profilesData) {
+        profilesData.forEach(profile => {
+          const cvData = profile.cv_data;
+          if (cvData?.personalInfo?.fullName) {
+            userInfoMap.set(profile.user_id, {
+              name: cvData.personalInfo.fullName,
+              email: cvData.personalInfo.email || 'user@example.com'
+            });
+          }
+        });
+      }
+    } catch (error) {
+      console.warn('⚠️ Could not load user profiles:', error);
+    }
+
+    // Get auth user metadata for users not found in profiles
+    try {
+      const { data: { users }, error: usersError } = await supabase.auth.admin.listUsers();
+      
+      if (!usersError && users) {
+        users.forEach(authUser => {
+          if (userIds.includes(authUser.id) && !userInfoMap.has(authUser.id)) {
+            const firstName = authUser.user_metadata?.first_name || '';
+            const lastName = authUser.user_metadata?.last_name || '';
+            const fullName = `${firstName} ${lastName}`.trim();
+            
+            if (fullName) {
+              userInfoMap.set(authUser.id, {
+                name: fullName,
+                email: authUser.email || 'user@example.com'
+              });
+            } else if (authUser.email) {
+              // Use email username as fallback
+              const emailUsername = authUser.email.split('@')[0];
+              userInfoMap.set(authUser.id, {
+                name: emailUsername,
+                email: authUser.email
+              });
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.warn('⚠️ Could not load auth users:', error);
+    }
+
+    return userInfoMap;
   };
 
   const loadMockPosts = () => {
@@ -233,24 +277,35 @@ const CommunityForum: React.FC = () => {
     setLoading(false);
   };
 
-  const getUserName = (cvData: any, userId: string) => {
-    // First try to get name from CV data
-    if (cvData?.personalInfo?.fullName) {
-      return cvData.personalInfo.fullName;
+  const getCurrentUserName = () => {
+    if (!user) return 'Anonymous';
+
+    // First try to get from user metadata
+    const firstName = user.user_metadata?.first_name || '';
+    const lastName = user.user_metadata?.last_name || '';
+    const fullName = `${firstName} ${lastName}`.trim();
+    
+    if (fullName) {
+      return fullName;
     }
     
-    // If it's the current user, try to get from user metadata
+    // Fallback to email username
+    if (user.email) {
+      return user.email.split('@')[0];
+    }
+    
+    return 'You';
+  };
+
+  const getUserNameForId = (userId: string, userProfile?: any) => {
+    // If it's the current user, use the current user name function
     if (user && userId === user.id) {
-      const firstName = user.user_metadata?.first_name || '';
-      const lastName = user.user_metadata?.last_name || '';
-      if (firstName || lastName) {
-        return `${firstName} ${lastName}`.trim();
-      }
-      // Fallback to email username
-      if (user.email) {
-        return user.email.split('@')[0];
-      }
-      return 'You';
+      return getCurrentUserName();
+    }
+    
+    // Try to get name from CV data
+    if (userProfile?.personalInfo?.fullName) {
+      return userProfile.personalInfo.fullName;
     }
     
     // For other users, create a friendly anonymous name
@@ -308,7 +363,7 @@ const CommunityForum: React.FC = () => {
         like_count: 0,
         comment_count: 0,
         user_id: data.user_id,
-        user_name: getUserName(null, user.id),
+        user_name: getCurrentUserName(),
         user_email: user.email || '',
         is_liked: false
       };
@@ -406,34 +461,19 @@ const CommunityForum: React.FC = () => {
         return;
       }
 
-      // Get user profiles for comment authors
+      // Get user information for comment authors
       const userIds = [...new Set(commentsData.map(c => c.user_id))];
-      
-      let profilesMap = new Map();
-      try {
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('user_profiles')
-          .select('user_id, cv_data')
-          .in('user_id', userIds);
-
-        if (!profilesError && profilesData) {
-          profilesData.forEach(profile => {
-            profilesMap.set(profile.user_id, profile.cv_data);
-          });
-        }
-      } catch (profilesError) {
-        console.warn('⚠️ Could not load comment author profiles:', profilesError);
-      }
+      const userInfoMap = await getUserInfoMap(userIds);
 
       const formattedComments: Comment[] = commentsData.map(comment => {
-        const userProfile = profilesMap.get(comment.user_id);
+        const userInfo = userInfoMap.get(comment.user_id);
         return {
           id: comment.id,
           content: comment.content,
           created_at: comment.created_at,
           user_id: comment.user_id,
-          user_name: getUserName(userProfile, comment.user_id),
-          user_email: userProfile?.personalInfo?.email || 'user@example.com',
+          user_name: userInfo?.name || getUserNameForId(comment.user_id),
+          user_email: userInfo?.email || 'user@example.com',
           parent_comment_id: comment.parent_comment_id
         };
       });
@@ -506,7 +546,7 @@ const CommunityForum: React.FC = () => {
         content: data.content,
         created_at: data.created_at,
         user_id: data.user_id,
-        user_name: getUserName(null, user.id),
+        user_name: getCurrentUserName(),
         user_email: user.email || '',
         parent_comment_id: data.parent_comment_id
       };
@@ -651,7 +691,7 @@ const CommunityForum: React.FC = () => {
           <div className="flex items-start space-x-4">
             <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center">
               <span className="text-white font-bold">
-                {getInitials(getUserName(null, user.id))}
+                {getInitials(getCurrentUserName())}
               </span>
             </div>
             <div className="flex-1">
@@ -784,7 +824,7 @@ const CommunityForum: React.FC = () => {
                         <div className="flex items-start space-x-3 mb-6">
                           <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center">
                             <span className="text-white font-bold text-xs">
-                              {getInitials(getUserName(null, user.id))}
+                              {getInitials(getCurrentUserName())}
                             </span>
                           </div>
                           <div className="flex-1">

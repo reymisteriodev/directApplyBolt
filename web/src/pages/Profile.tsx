@@ -1,15 +1,177 @@
-import React, { useState } from 'react';
-import { Upload, User, FileText, Award, Settings } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Upload, User, FileText, Award, Settings, Save } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
+import { toast } from 'react-hot-toast';
 import Header from '../components/Header';
 
 const Profile: React.FC = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [cvFile, setCvFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [profileData, setProfileData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    location: '',
+    professionalSummary: ''
+  });
+
+  // Load user data on component mount
+  useEffect(() => {
+    if (user) {
+      loadUserProfile();
+    }
+  }, [user]);
+
+  const loadUserProfile = async () => {
+    if (!user) return;
+
+    try {
+      // Get user metadata from auth
+      const firstName = user.user_metadata?.first_name || '';
+      const lastName = user.user_metadata?.last_name || '';
+      const email = user.email || '';
+
+      // Try to get additional profile data from CV
+      const { data: profileData, error } = await supabase
+        .from('user_profiles')
+        .select('cv_data')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      let phone = '';
+      let location = '';
+      let professionalSummary = '';
+
+      if (!error && profileData && profileData.length > 0 && profileData[0]?.cv_data) {
+        const cvData = profileData[0].cv_data;
+        phone = cvData.personalInfo?.phone || '';
+        location = cvData.personalInfo?.location || '';
+        professionalSummary = cvData.professionalSummary || '';
+      }
+
+      setProfileData({
+        firstName,
+        lastName,
+        email,
+        phone,
+        location,
+        professionalSummary
+      });
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    }
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setCvFile(e.target.files[0]);
     }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setProfileData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user) {
+      toast.error('Please sign in to save profile');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Update user metadata in auth
+      const { error: authError } = await supabase.auth.updateUser({
+        data: {
+          first_name: profileData.firstName,
+          last_name: profileData.lastName
+        }
+      });
+
+      if (authError) {
+        console.error('Error updating auth metadata:', authError);
+        // Continue anyway, as this is not critical
+      }
+
+      // Update or create user profile with CV data
+      const { data: existingProfile, error: fetchError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (fetchError) {
+        console.error('Error fetching profile:', fetchError);
+        throw fetchError;
+      }
+
+      const cvData = existingProfile?.[0]?.cv_data || {};
+      
+      // Update CV data with new profile information
+      const updatedCvData = {
+        ...cvData,
+        personalInfo: {
+          ...cvData.personalInfo,
+          fullName: `${profileData.firstName} ${profileData.lastName}`.trim(),
+          email: profileData.email,
+          phone: profileData.phone,
+          location: profileData.location
+        },
+        professionalSummary: profileData.professionalSummary
+      };
+
+      if (existingProfile && existingProfile.length > 0) {
+        // Update existing profile
+        const { error: updateError } = await supabase
+          .from('user_profiles')
+          .update({
+            cv_data: updatedCvData,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingProfile[0].id);
+
+        if (updateError) throw updateError;
+      } else {
+        // Create new profile
+        const { error: insertError } = await supabase
+          .from('user_profiles')
+          .insert({
+            user_id: user.id,
+            cv_data: updatedCvData,
+            updated_at: new Date().toISOString()
+          });
+
+        if (insertError) throw insertError;
+      }
+
+      toast.success('Profile updated successfully!');
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      toast.error('Failed to save profile. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getCurrentUserName = () => {
+    const fullName = `${profileData.firstName} ${profileData.lastName}`.trim();
+    if (fullName) {
+      return fullName;
+    }
+    if (profileData.email) {
+      return profileData.email.split('@')[0];
+    }
+    return 'User';
   };
 
   return (
@@ -24,8 +186,8 @@ const Profile: React.FC = () => {
               <div className="w-20 h-20 bg-orange-100 rounded-full mx-auto mb-4 flex items-center justify-center">
                 <User className="w-10 h-10 text-orange-600" />
               </div>
-              <h2 className="text-xl font-semibold text-gray-900">John Doe</h2>
-              <p className="text-gray-600">Frontend Developer</p>
+              <h2 className="text-xl font-semibold text-gray-900">{getCurrentUserName()}</h2>
+              <p className="text-gray-600">{profileData.email}</p>
             </div>
             
             <nav className="space-y-2">
@@ -57,7 +219,7 @@ const Profile: React.FC = () => {
               {activeTab === 'profile' && (
                 <div className="p-6">
                   <h3 className="text-xl font-semibold text-gray-900 mb-6">Profile Information</h3>
-                  <form className="space-y-6">
+                  <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); handleSaveProfile(); }}>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -65,8 +227,11 @@ const Profile: React.FC = () => {
                         </label>
                         <input
                           type="text"
-                          defaultValue="John"
+                          name="firstName"
+                          value={profileData.firstName}
+                          onChange={handleInputChange}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                          placeholder="Enter your first name"
                         />
                       </div>
                       <div>
@@ -75,8 +240,11 @@ const Profile: React.FC = () => {
                         </label>
                         <input
                           type="text"
-                          defaultValue="Doe"
+                          name="lastName"
+                          value={profileData.lastName}
+                          onChange={handleInputChange}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                          placeholder="Enter your last name"
                         />
                       </div>
                     </div>
@@ -87,9 +255,13 @@ const Profile: React.FC = () => {
                       </label>
                       <input
                         type="email"
-                        defaultValue="john.doe@email.com"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        name="email"
+                        value={profileData.email}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-gray-50"
+                        disabled
                       />
+                      <p className="text-xs text-gray-500 mt-1">Email cannot be changed here. Contact support if needed.</p>
                     </div>
                     
                     <div>
@@ -98,6 +270,9 @@ const Profile: React.FC = () => {
                       </label>
                       <input
                         type="tel"
+                        name="phone"
+                        value={profileData.phone}
+                        onChange={handleInputChange}
                         placeholder="+1 (555) 123-4567"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                       />
@@ -109,6 +284,9 @@ const Profile: React.FC = () => {
                       </label>
                       <input
                         type="text"
+                        name="location"
+                        value={profileData.location}
+                        onChange={handleInputChange}
                         placeholder="City, State"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                       />
@@ -119,14 +297,26 @@ const Profile: React.FC = () => {
                         Professional Summary
                       </label>
                       <textarea
+                        name="professionalSummary"
+                        value={profileData.professionalSummary}
+                        onChange={handleInputChange}
                         rows={4}
                         placeholder="Brief description of your professional background and career goals..."
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                       />
                     </div>
                     
-                    <button className="bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600 transition-colors">
-                      Save Changes
+                    <button 
+                      type="submit"
+                      disabled={loading}
+                      className="bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                    >
+                      {loading ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Save className="w-4 h-4" />
+                      )}
+                      <span>{loading ? 'Saving...' : 'Save Changes'}</span>
                     </button>
                   </form>
                 </div>
