@@ -1,8 +1,14 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Use actual Supabase credentials for the deployed version
-const supabaseUrl = 'https://sflsmtiglvcalhujjswf.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmbHNtdGlnbHZjYWxodWpqc3dmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAwMDcxOTUsImV4cCI6MjA2NTU4MzE5NX0.d-rRjMsOC0IIoy6-l2qN9amKsJd9PWZzNX53eDDueOE'
+// Check if environment variables are properly set
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+// Validate environment variables
+if (!supabaseUrl || !supabaseAnonKey || supabaseUrl === 'your_supabase_project_url' || supabaseAnonKey === 'your_supabase_anon_key') {
+  console.error('Supabase environment variables are not properly configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.')
+  console.error('You can find these values in your Supabase project settings under API.')
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
