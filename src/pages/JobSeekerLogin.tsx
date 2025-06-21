@@ -30,14 +30,17 @@ const JobSeekerLogin: React.FC = () => {
   // Handle redirect after authentication is complete
   useEffect(() => {
     // Only redirect if we have a user and auth is not loading
-    if (user && !authLoading) {
-      // For login users, go directly to dashboard regardless of CV status
-      // For new registrations, they'll be handled in handleSubmit
-      if (isLogin) {
+    if (user && !authLoading && isLogin) {
+      // For login users, check if they have completed CV
+      if (hasCompletedCV) {
+        // User has CV, go to dashboard
         navigate('/seeker/dashboard');
+      } else {
+        // First time login, go to welcome page
+        navigate('/seeker/cv-welcome');
       }
     }
-  }, [user, authLoading, navigate, isLogin]);
+  }, [user, authLoading, navigate, isLogin, hasCompletedCV]);
 
   // Clear login error when switching between login/signup or when typing
   useEffect(() => {
@@ -91,7 +94,7 @@ const JobSeekerLogin: React.FC = () => {
 
     try {
       if (isLogin) {
-        // Handle login - go directly to dashboard
+        // Handle login - redirect will be handled by useEffect
         const { error } = await signIn(formData.email, formData.password);
         
         if (error) {
@@ -114,9 +117,9 @@ const JobSeekerLogin: React.FC = () => {
         }
         
         toast.success('Welcome back!');
-        navigate('/seeker/dashboard');
+        // Redirect will be handled by useEffect based on hasCompletedCV
       } else {
-        // Handle registration - new users go to welcome page
+        // Handle registration - redirect to sign-in page after successful registration
         if (formData.password !== formData.confirmPassword) {
           toast.error('Passwords do not match');
           return;
@@ -154,9 +157,17 @@ const JobSeekerLogin: React.FC = () => {
           return;
         }
         
-        toast.success('Account created successfully! Let\'s set up your CV to get started.');
-        // For new registrations, always go to CV welcome gate
-        navigate('/seeker/cv-welcome');
+        // After successful registration, switch to login mode
+        toast.success('Account created successfully! Please sign in to continue.');
+        setIsLogin(true);
+        // Clear form data except email
+        setFormData({
+          email: formData.email,
+          password: '',
+          confirmPassword: '',
+          firstName: '',
+          lastName: ''
+        });
       }
     } catch (error: any) {
       console.error('Auth error:', error);
