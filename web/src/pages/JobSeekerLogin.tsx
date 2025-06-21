@@ -12,7 +12,7 @@ const JobSeekerLogin: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [justRegistered, setJustRegistered] = useState(false);
-  const [justLoggedIn, setJustLoggedIn] = useState(false); // NEW: Track if user just logged in
+  const [justLoggedIn, setJustLoggedIn] = useState(false);
   const [rateLimitInfo, setRateLimitInfo] = useState<{ isRateLimited: boolean; waitTime: number; message: string }>({
     isRateLimited: false,
     waitTime: 0,
@@ -29,7 +29,7 @@ const JobSeekerLogin: React.FC = () => {
   const { signUp, signIn, user, hasCompletedCV, hasSeenWelcome, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // FIXED: Only redirect if user just logged in successfully, not just because they have a session
+  // FIXED: Only redirect if user just logged in successfully AND auth is not loading
   useEffect(() => {
     // Only redirect if:
     // 1. We have a user
@@ -222,8 +222,8 @@ const JobSeekerLogin: React.FC = () => {
     });
   };
 
-  const isLoadingState = loading || authLoading;
-  const isFormDisabled = isLoadingState || rateLimitInfo.isRateLimited;
+  // FIXED: Only disable form during actual form submission, not during auth loading
+  const isFormDisabled = loading || rateLimitInfo.isRateLimited;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
@@ -463,12 +463,10 @@ const JobSeekerLogin: React.FC = () => {
                 disabled={isFormDisabled}
                 className="w-full bg-orange-500 text-white py-2 px-4 rounded-lg hover:bg-orange-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isLoadingState ? (
+                {loading ? (
                   <div className="flex items-center justify-center space-x-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>
-                      {loading ? 'Please wait...' : 'Signing in...'}
-                    </span>
+                    <span>Please wait...</span>
                   </div>
                 ) : rateLimitInfo.isRateLimited ? (
                   <div className="flex items-center justify-center space-x-2">
