@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, Mail, Lock, Eye, EyeOff, AlertCircle, Clock } from 'lucide-react';
+import { Search, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Header from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,25 +19,27 @@ const JobSeekerLogin: React.FC = () => {
     lastName: ''
   });
 
-  const { signUp, signIn, user, hasCompletedCV, hasSeenWelcome } = useAuth();
+  const { signUp, signIn, user, hasCompletedCV, hasSeenWelcome, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // SIMPLE REDIRECT LOGIC - Only redirect when user successfully logs in
+  // SIMPLE REDIRECT LOGIC - Only redirect when user is authenticated
   useEffect(() => {
-    if (user && !loading) {
+    // Only redirect if we have a user and auth is not loading
+    if (user && !authLoading && !loading) {
       console.log('🚀 User authenticated, redirecting...', { hasCompletedCV, hasSeenWelcome });
       
       // Simple logic: 
       // - If user has never seen welcome page -> go to welcome (one-time)
-      // - If user has seen welcome but no CV -> go to dashboard
-      // - If user has CV -> go to dashboard
+      // - Otherwise -> go to dashboard
       if (!hasSeenWelcome) {
+        console.log('📋 First time user - going to welcome');
         navigate('/seeker/cv-welcome');
       } else {
+        console.log('🏠 Returning user - going to dashboard');
         navigate('/seeker/dashboard');
       }
     }
-  }, [user, hasCompletedCV, hasSeenWelcome, navigate]);
+  }, [user, hasCompletedCV, hasSeenWelcome, authLoading, loading, navigate]);
 
   // Clear errors when switching modes
   useEffect(() => {
@@ -138,6 +140,18 @@ const JobSeekerLogin: React.FC = () => {
       [e.target.name]: e.target.value
     });
   };
+
+  // Show loading state while auth is loading
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
