@@ -9,7 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 const JobSeekerLogin: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-  const [formLoading, setFormLoading] = useState(false); // Separate form loading state
+  const [isSubmitting, setIsSubmitting] = useState(false); // RENAMED AND SIMPLIFIED
   const [loginError, setLoginError] = useState('');
   const [formData, setFormData] = useState({
     email: '',
@@ -24,8 +24,8 @@ const JobSeekerLogin: React.FC = () => {
 
   // Handle redirect after authentication - but only if user exists and auth is not loading
   useEffect(() => {
-    // Only redirect if we have a user, auth is not loading, and form is not loading
-    if (user && !authLoading && !formLoading) {
+    // Only redirect if we have a user, auth is not loading, and form is not submitting
+    if (user && !authLoading && !isSubmitting) {
       console.log('🚀 User authenticated, determining redirect...', {
         hasCompletedCV,
         hasSeenWelcome,
@@ -53,7 +53,7 @@ const JobSeekerLogin: React.FC = () => {
         }
       }, 100);
     }
-  }, [user, authLoading, formLoading, hasCompletedCV, hasSeenWelcome, navigate, isLogin]);
+  }, [user, authLoading, isSubmitting, hasCompletedCV, hasSeenWelcome, navigate, isLogin]);
 
   // Clear login error when switching modes or typing
   useEffect(() => {
@@ -64,7 +64,7 @@ const JobSeekerLogin: React.FC = () => {
     e.preventDefault();
     
     // Prevent double submission
-    if (formLoading) {
+    if (isSubmitting) {
       console.log('⏳ Form already processing, ignoring submission');
       return;
     }
@@ -75,7 +75,8 @@ const JobSeekerLogin: React.FC = () => {
       return;
     }
 
-    setFormLoading(true);
+    console.log('🚀 Starting form submission...');
+    setIsSubmitting(true); // ONLY SET TO TRUE WHEN ACTUALLY SUBMITTING
     setLoginError('');
 
     try {
@@ -154,7 +155,8 @@ const JobSeekerLogin: React.FC = () => {
       setLoginError('An unexpected error occurred. Please try again.');
       toast.error('An unexpected error occurred. Please try again.');
     } finally {
-      setFormLoading(false);
+      console.log('🏁 Form submission complete, resetting loading state');
+      setIsSubmitting(false); // ALWAYS RESET TO FALSE
     }
   };
 
@@ -168,9 +170,6 @@ const JobSeekerLogin: React.FC = () => {
       [e.target.name]: e.target.value
     });
   };
-
-  // Only show loading state for the button when form is actually submitting
-  const isButtonLoading = formLoading;
 
   // Show a simple loading screen only if auth is still initializing AND we don't have a user yet
   if (authLoading && !user) {
@@ -252,7 +251,8 @@ const JobSeekerLogin: React.FC = () => {
                       required={!isLogin}
                       value={formData.firstName}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
+                      disabled={isSubmitting}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors disabled:opacity-50"
                       placeholder="John"
                     />
                   </div>
@@ -267,7 +267,8 @@ const JobSeekerLogin: React.FC = () => {
                       required={!isLogin}
                       value={formData.lastName}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
+                      disabled={isSubmitting}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors disabled:opacity-50"
                       placeholder="Doe"
                     />
                   </div>
@@ -289,7 +290,8 @@ const JobSeekerLogin: React.FC = () => {
                     required
                     value={formData.email}
                     onChange={handleInputChange}
-                    className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${
+                    disabled={isSubmitting}
+                    className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors disabled:opacity-50 ${
                       loginError && loginError.includes('incorrect') 
                         ? 'border-red-300 bg-red-50' 
                         : 'border-gray-300'
@@ -314,7 +316,8 @@ const JobSeekerLogin: React.FC = () => {
                     required
                     value={formData.password}
                     onChange={handleInputChange}
-                    className={`w-full pl-10 pr-10 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${
+                    disabled={isSubmitting}
+                    className={`w-full pl-10 pr-10 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors disabled:opacity-50 ${
                       loginError && loginError.includes('incorrect') 
                         ? 'border-red-300 bg-red-50' 
                         : 'border-gray-300'
@@ -325,6 +328,7 @@ const JobSeekerLogin: React.FC = () => {
                     type="button"
                     className="absolute inset-y-0 right-0 pr-3 flex items-center"
                     onClick={() => setShowPassword(!showPassword)}
+                    disabled={isSubmitting}
                   >
                     {showPassword ? (
                       <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
@@ -351,7 +355,8 @@ const JobSeekerLogin: React.FC = () => {
                       required={!isLogin}
                       value={formData.confirmPassword}
                       onChange={handleInputChange}
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
+                      disabled={isSubmitting}
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors disabled:opacity-50"
                       placeholder="Confirm your password"
                     />
                   </div>
@@ -365,7 +370,8 @@ const JobSeekerLogin: React.FC = () => {
                       id="remember-me"
                       name="remember-me"
                       type="checkbox"
-                      className="h-4 w-4 text-orange-500 focus:ring-orange-500 border-gray-300 rounded"
+                      disabled={isSubmitting}
+                      className="h-4 w-4 text-orange-500 focus:ring-orange-500 border-gray-300 rounded disabled:opacity-50"
                     />
                     <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
                       Remember me
@@ -377,12 +383,13 @@ const JobSeekerLogin: React.FC = () => {
                 </div>
               )}
 
+              {/* FIXED SUBMIT BUTTON - ONLY SHOWS LOADING WHEN ACTUALLY SUBMITTING */}
               <button
                 type="submit"
-                disabled={isButtonLoading}
+                disabled={isSubmitting}
                 className="w-full bg-orange-500 text-white py-2 px-4 rounded-lg hover:bg-orange-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isButtonLoading ? (
+                {isSubmitting ? (
                   <div className="flex items-center justify-center space-x-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     <span>
@@ -401,7 +408,7 @@ const JobSeekerLogin: React.FC = () => {
                 <button
                   onClick={() => setIsLogin(!isLogin)}
                   className="text-orange-600 hover:text-orange-700 font-medium"
-                  disabled={isButtonLoading}
+                  disabled={isSubmitting}
                 >
                   {isLogin ? 'Sign up' : 'Sign in'}
                 </button>
