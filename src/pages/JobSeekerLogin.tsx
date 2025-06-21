@@ -171,6 +171,7 @@ const JobSeekerLogin: React.FC = () => {
         
         // After successful registration, switch to login mode and stay on page
         setJustRegistered(true);
+        // FIXED: Use the correct success message for registration
         toast.success('Account created successfully! Please sign in to continue.');
         setIsLogin(true);
         setFormData({
