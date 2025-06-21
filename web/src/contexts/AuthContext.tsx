@@ -44,7 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           checkUserStatus(session.user.id)
         }
       }
-      setLoading(false)
+      setLoading(false) // Always set loading to false after initial check
     })
 
     // Listen for auth changes
@@ -59,7 +59,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setHasCompletedCV(false)
           setHasSeenWelcome(false)
         }
-        setLoading(false)
+        // Don't set loading to false here for auth state changes
       }
     )
 
@@ -125,7 +125,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, password: string, userData?: any) => {
     try {
       console.log('📝 Starting signup for:', email)
-      setLoading(true)
       
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -145,15 +144,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error: any) {
       console.error('💥 Signup exception:', error)
       return { error }
-    } finally {
-      setLoading(false)
     }
   }
 
   const signIn = async (email: string, password: string) => {
     try {
       console.log('🔐 Starting signin for:', email)
-      setLoading(true)
       
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -170,15 +166,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('💥 Signin exception:', error)
       return { error }
-    } finally {
-      setLoading(false)
     }
   }
 
   const signOut = async () => {
     try {
       console.log('🚪 Signing out...')
-      setLoading(true)
       const { error } = await supabase.auth.signOut()
       if (error) {
         console.error('❌ Sign out error:', error)
@@ -189,8 +182,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setHasSeenWelcome(false)
     } catch (error) {
       console.error('💥 Sign out exception:', error)
-    } finally {
-      setLoading(false)
     }
   }
 

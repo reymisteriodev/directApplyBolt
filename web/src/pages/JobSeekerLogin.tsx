@@ -9,7 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 const JobSeekerLogin: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [formLoading, setFormLoading] = useState(false); // Separate form loading state
   const [loginError, setLoginError] = useState('');
   const [formData, setFormData] = useState({
     email: '',
@@ -22,9 +22,10 @@ const JobSeekerLogin: React.FC = () => {
   const { signUp, signIn, user, hasCompletedCV, hasSeenWelcome, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Handle redirect after authentication
+  // Handle redirect after authentication - but only if user exists and auth is not loading
   useEffect(() => {
-    if (user && !authLoading && !loading) {
+    // Only redirect if we have a user, auth is not loading, and form is not loading
+    if (user && !authLoading && !formLoading) {
       console.log('🚀 User authenticated, determining redirect...', {
         hasCompletedCV,
         hasSeenWelcome,
@@ -52,7 +53,7 @@ const JobSeekerLogin: React.FC = () => {
         }
       }, 100);
     }
-  }, [user, authLoading, loading, hasCompletedCV, hasSeenWelcome, navigate, isLogin]);
+  }, [user, authLoading, formLoading, hasCompletedCV, hasSeenWelcome, navigate, isLogin]);
 
   // Clear login error when switching modes or typing
   useEffect(() => {
@@ -63,12 +64,18 @@ const JobSeekerLogin: React.FC = () => {
     e.preventDefault();
     
     // Prevent double submission
-    if (loading || authLoading) {
-      console.log('⏳ Already processing, ignoring submission');
+    if (formLoading) {
+      console.log('⏳ Form already processing, ignoring submission');
       return;
     }
 
-    setLoading(true);
+    // Validate form data
+    if (!formData.email.trim() || !formData.password.trim()) {
+      toast.error('Please enter both email and password');
+      return;
+    }
+
+    setFormLoading(true);
     setLoginError('');
 
     try {
@@ -147,7 +154,7 @@ const JobSeekerLogin: React.FC = () => {
       setLoginError('An unexpected error occurred. Please try again.');
       toast.error('An unexpected error occurred. Please try again.');
     } finally {
-      setLoading(false);
+      setFormLoading(false);
     }
   };
 
@@ -162,7 +169,20 @@ const JobSeekerLogin: React.FC = () => {
     });
   };
 
-  const isLoadingState = loading || authLoading;
+  // Only show loading state for the button when form is actually submitting
+  const isButtonLoading = formLoading;
+
+  // Show a simple loading screen only if auth is still initializing AND we don't have a user yet
+  if (authLoading && !user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
@@ -359,14 +379,14 @@ const JobSeekerLogin: React.FC = () => {
 
               <button
                 type="submit"
-                disabled={isLoadingState}
+                disabled={isButtonLoading}
                 className="w-full bg-orange-500 text-white py-2 px-4 rounded-lg hover:bg-orange-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isLoadingState ? (
+                {isButtonLoading ? (
                   <div className="flex items-center justify-center space-x-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     <span>
-                      {loading ? (isLogin ? 'Signing in...' : 'Creating account...') : 'Loading...'}
+                      {isLogin ? 'Signing in...' : 'Creating account...'}
                     </span>
                   </div>
                 ) : (
@@ -381,7 +401,7 @@ const JobSeekerLogin: React.FC = () => {
                 <button
                   onClick={() => setIsLogin(!isLogin)}
                   className="text-orange-600 hover:text-orange-700 font-medium"
-                  disabled={isLoadingState}
+                  disabled={isButtonLoading}
                 >
                   {isLogin ? 'Sign up' : 'Sign in'}
                 </button>
