@@ -22,52 +22,65 @@ const JobSeekerLogin: React.FC = () => {
   const { signUp, signIn, user, hasCompletedCV, hasSeenWelcome, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Handle redirect after authentication is complete
+  // Handle redirect after authentication
   useEffect(() => {
-    if (user && !authLoading) {
-      console.log('🔄 User authenticated, checking status...', {
+    if (user && !authLoading && !loading) {
+      console.log('🚀 User authenticated, determining redirect...', {
         hasCompletedCV,
         hasSeenWelcome,
         isLogin
       });
 
-      if (isLogin) {
-        // For existing users logging in
-        if (hasCompletedCV) {
-          console.log('✅ Existing user with CV - going to dashboard');
-          navigate('/seeker/dashboard');
-        } else if (hasSeenWelcome) {
-          console.log('🔄 User has seen welcome but no CV - going to CV builder');
-          navigate('/seeker/cv-builder');
+      // Small delay to ensure state is properly set
+      setTimeout(() => {
+        if (isLogin) {
+          // For existing users logging in
+          if (hasCompletedCV) {
+            console.log('✅ Existing user with CV → Dashboard');
+            navigate('/seeker/dashboard');
+          } else if (hasSeenWelcome) {
+            console.log('🔄 User seen welcome but no CV → CV Builder');
+            navigate('/seeker/cv-builder');
+          } else {
+            console.log('👋 First time user → Welcome');
+            navigate('/seeker/cv-welcome');
+          }
         } else {
-          console.log('👋 First time user - going to welcome');
+          // For new registrations - always go to welcome
+          console.log('🆕 New registration → Welcome');
           navigate('/seeker/cv-welcome');
         }
-      } else {
-        // For new registrations - always go to welcome
-        console.log('🆕 New registration - going to welcome');
-        navigate('/seeker/cv-welcome');
-      }
+      }, 100);
     }
-  }, [user, authLoading, hasCompletedCV, hasSeenWelcome, navigate, isLogin]);
+  }, [user, authLoading, loading, hasCompletedCV, hasSeenWelcome, navigate, isLogin]);
 
-  // Clear login error when switching between login/signup or when typing
+  // Clear login error when switching modes or typing
   useEffect(() => {
     setLoginError('');
   }, [isLogin]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent double submission
+    if (loading || authLoading) {
+      console.log('⏳ Already processing, ignoring submission');
+      return;
+    }
+
     setLoading(true);
     setLoginError('');
 
     try {
       if (isLogin) {
         console.log('🔐 Attempting login for:', formData.email);
+        
         const { error } = await signIn(formData.email, formData.password);
         
         if (error) {
           console.error('❌ Login error:', error);
+          
+          // Handle specific authentication errors
           if (error.message?.includes('Invalid login credentials') || 
               error.message?.includes('invalid_credentials')) {
             setLoginError('The email or password you entered is incorrect. Please check your credentials and try again.');
@@ -88,9 +101,11 @@ const JobSeekerLogin: React.FC = () => {
         console.log('✅ Login successful');
         toast.success('Welcome back!');
         // Navigation will be handled by useEffect
+        
       } else {
         console.log('📝 Attempting registration for:', formData.email);
         
+        // Validation
         if (formData.password !== formData.confirmPassword) {
           toast.error('Passwords do not match');
           return;
@@ -98,6 +113,11 @@ const JobSeekerLogin: React.FC = () => {
 
         if (formData.password.length < 6) {
           toast.error('Password must be at least 6 characters');
+          return;
+        }
+
+        if (!formData.firstName.trim() || !formData.lastName.trim()) {
+          toast.error('Please enter your first and last name');
           return;
         }
 
@@ -346,7 +366,7 @@ const JobSeekerLogin: React.FC = () => {
                   <div className="flex items-center justify-center space-x-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     <span>
-                      {loading ? 'Please wait...' : 'Signing in...'}
+                      {loading ? (isLogin ? 'Signing in...' : 'Creating account...') : 'Loading...'}
                     </span>
                   </div>
                 ) : (
@@ -361,6 +381,7 @@ const JobSeekerLogin: React.FC = () => {
                 <button
                   onClick={() => setIsLogin(!isLogin)}
                   className="text-orange-600 hover:text-orange-700 font-medium"
+                  disabled={isLoadingState}
                 >
                   {isLogin ? 'Sign up' : 'Sign in'}
                 </button>

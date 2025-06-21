@@ -31,12 +31,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [hasSeenWelcome, setHasSeenWelcome] = useState(false)
 
   useEffect(() => {
+    console.log('🔄 AuthProvider initializing...')
+    
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Initial session check:', session?.user?.email || 'No user')
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        checkUserStatus(session.user.id)
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('❌ Session error:', error)
+      } else {
+        console.log('✅ Initial session:', session?.user?.email || 'No user')
+        setUser(session?.user ?? null)
+        if (session?.user) {
+          checkUserStatus(session.user.id)
+        }
       }
       setLoading(false)
     })
@@ -44,7 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state change:', event, 'User:', session?.user?.email || 'No user')
+        console.log('🔄 Auth state change:', event, 'User:', session?.user?.email || 'No user')
         setUser(session?.user ?? null)
         
         if (session?.user) {
@@ -57,46 +63,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      console.log('🧹 Cleaning up auth subscription')
+      subscription.unsubscribe()
+    }
   }, [])
 
   const checkUserStatus = async (userId: string) => {
     try {
-      console.log('Checking user status for:', userId)
+      console.log('🔍 Checking user status for:', userId)
       
       const { data, error } = await supabase
         .from('user_profiles')
         .select('cv_data, has_seen_welcome')
         .eq('user_id', userId)
-        .limit(1)
-
-      console.log('User status check result:', { data, error })
+        .maybeSingle()
 
       if (error) {
-        console.error('Error checking user status:', error)
+        console.error('❌ Error checking user status:', error)
         setHasCompletedCV(false)
         setHasSeenWelcome(false)
         return
       }
 
-      if (!data || data.length === 0) {
-        console.log('No user profile found - new user')
+      if (!data) {
+        console.log('👤 New user - no profile found')
         setHasCompletedCV(false)
         setHasSeenWelcome(false)
         return
       }
 
-      const profile = data[0]
-      
-      // Check if user has seen welcome
-      const seenWelcome = profile.has_seen_welcome || false
+      // Check welcome status
+      const seenWelcome = data.has_seen_welcome || false
       setHasSeenWelcome(seenWelcome)
-      console.log('Has seen welcome:', seenWelcome)
+      console.log('👋 Has seen welcome:', seenWelcome)
 
       // Check CV completion
-      const cvData = profile.cv_data
+      const cvData = data.cv_data
       if (!cvData) {
-        console.log('No CV data found')
+        console.log('📄 No CV data found')
         setHasCompletedCV(false)
         return
       }
@@ -107,11 +112,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                        cvData.uploadedFile
 
       const cvCompleted = hasBasicInfo && hasContent
-      console.log('CV completion status:', cvCompleted)
+      console.log('📋 CV completion status:', cvCompleted)
       setHasCompletedCV(cvCompleted)
       
     } catch (error) {
-      console.error('Error checking user status:', error)
+      console.error('💥 Error checking user status:', error)
       setHasCompletedCV(false)
       setHasSeenWelcome(false)
     }
@@ -119,8 +124,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signUp = async (email: string, password: string, userData?: any) => {
     try {
+      console.log('📝 Starting signup for:', email)
       setLoading(true)
-      console.log('Attempting signup for:', email)
       
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -131,14 +136,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
       
       if (error) {
-        console.error('Sign up error:', error)
+        console.error('❌ Signup error:', error)
         return { error }
       }
       
-      console.log('Signup successful for:', email)
+      console.log('✅ Signup successful for:', email)
       return { error: null }
     } catch (error: any) {
-      console.error('Sign up error:', error)
+      console.error('💥 Signup exception:', error)
       return { error }
     } finally {
       setLoading(false)
@@ -147,8 +152,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (email: string, password: string) => {
     try {
+      console.log('🔐 Starting signin for:', email)
       setLoading(true)
-      console.log('Attempting signin for:', email)
       
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -156,14 +161,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
       
       if (error) {
-        console.error('Sign in error:', error)
+        console.error('❌ Signin error:', error)
         return { error }
       }
       
-      console.log('Signin successful for:', email)
+      console.log('✅ Signin successful for:', email)
       return { error: null }
     } catch (error) {
-      console.error('Sign in error:', error)
+      console.error('💥 Signin exception:', error)
       return { error }
     } finally {
       setLoading(false)
@@ -172,15 +177,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     try {
+      console.log('🚪 Signing out...')
       setLoading(true)
       const { error } = await supabase.auth.signOut()
       if (error) {
-        console.error('Sign out error:', error)
+        console.error('❌ Sign out error:', error)
+      } else {
+        console.log('✅ Signed out successfully')
       }
       setHasCompletedCV(false)
       setHasSeenWelcome(false)
     } catch (error) {
-      console.error('Sign out error:', error)
+      console.error('💥 Sign out exception:', error)
     } finally {
       setLoading(false)
     }
