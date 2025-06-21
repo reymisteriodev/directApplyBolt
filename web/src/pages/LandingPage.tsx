@@ -36,6 +36,7 @@ import {
   UserPlus
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import FeatureShowcase from '../components/FeatureShowcase';
 
 const LandingPage: React.FC = () => {
@@ -44,6 +45,7 @@ const LandingPage: React.FC = () => {
   const y1 = useTransform(scrollY, [0, 300], [0, 50]);
   const y2 = useTransform(scrollY, [0, 300], [0, -50]);
   const { userType, setUserType } = useTheme();
+  const { user, hasCompletedCV, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   // Set theme to seekers when component mounts
@@ -54,6 +56,34 @@ const LandingPage: React.FC = () => {
   const handleSwitchToCompanies = () => {
     setUserType('companies');
     navigate('/companies');
+  };
+
+  const handleSignInClick = () => {
+    // If user is already authenticated, redirect them appropriately
+    if (user && !authLoading) {
+      if (hasCompletedCV) {
+        navigate('/seeker/dashboard');
+      } else {
+        navigate('/seeker/cv-welcome');
+      }
+    } else {
+      // If not authenticated, go to login page
+      navigate('/seeker/login');
+    }
+  };
+
+  const handleStartJobSearchClick = () => {
+    // If user is already authenticated, redirect them appropriately
+    if (user && !authLoading) {
+      if (hasCompletedCV) {
+        navigate('/seeker/dashboard');
+      } else {
+        navigate('/seeker/cv-welcome');
+      }
+    } else {
+      // If not authenticated, go to login page
+      navigate('/seeker/login');
+    }
   };
 
   return (
@@ -77,19 +107,23 @@ const LandingPage: React.FC = () => {
               
               {/* Job Seeker CTAs */}
               <div className="flex items-center space-x-4">
-                <Link 
-                  to="/seeker/login" 
-                  className="text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium"
-                >
-                  Sign In
-                </Link>
-                <Link 
-                  to="/seeker/login" 
-                  className="bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600 transition-all duration-200 text-sm font-medium flex items-center space-x-2 shadow-lg"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  <span>Start Job Search</span>
-                </Link>
+                {!authLoading && (
+                  <>
+                    <button 
+                      onClick={handleSignInClick}
+                      className="text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium"
+                    >
+                      {user ? (hasCompletedCV ? 'Dashboard' : 'Continue Setup') : 'Sign In'}
+                    </button>
+                    <button 
+                      onClick={handleStartJobSearchClick}
+                      className="bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600 transition-all duration-200 text-sm font-medium flex items-center space-x-2 shadow-lg"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span>{user ? (hasCompletedCV ? 'Find Jobs' : 'Complete Setup') : 'Start Job Search'}</span>
+                    </button>
+                  </>
+                )}
                 
                 {/* Prominent Company Toggle */}
                 <div className="ml-4 pl-4 border-l border-gray-300">
@@ -122,15 +156,22 @@ const LandingPage: React.FC = () => {
                 <a href="#how-it-works" className="text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium">How It Works</a>
                 <a href="#pricing" className="text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium">Pricing</a>
                 <div className="border-t border-gray-200 pt-4 space-y-3">
-                  <Link to="/seeker/login" className="block text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium">
-                    Sign In
-                  </Link>
-                  <Link 
-                    to="/seeker/login" 
-                    className="block bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-all duration-200 text-sm font-medium text-center"
-                  >
-                    Start Job Search
-                  </Link>
+                  {!authLoading && (
+                    <>
+                      <button 
+                        onClick={handleSignInClick}
+                        className="block w-full text-left text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium"
+                      >
+                        {user ? (hasCompletedCV ? 'Dashboard' : 'Continue Setup') : 'Sign In'}
+                      </button>
+                      <button 
+                        onClick={handleStartJobSearchClick}
+                        className="block w-full bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-all duration-200 text-sm font-medium text-center"
+                      >
+                        {user ? (hasCompletedCV ? 'Find Jobs' : 'Complete Setup') : 'Start Job Search'}
+                      </button>
+                    </>
+                  )}
                   <button
                     onClick={handleSwitchToCompanies}
                     className="block w-full bg-gradient-to-r from-slate-700 to-slate-800 text-white px-4 py-2 rounded-lg hover:from-slate-800 hover:to-slate-900 transition-all duration-200 text-sm font-medium text-center"
@@ -192,19 +233,23 @@ const LandingPage: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.5 }}
             >
-              <Link
-                to="/seeker/login"
-                className="bg-orange-500 text-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-orange-600 transition-all duration-200 hover:scale-105 flex items-center space-x-2 shadow-lg"
-              >
-                <span>Start Job Search</span>
-                <ArrowRight className="w-5 h-5" />
-              </Link>
-              <Link
-                to="/seeker/login"
-                className="bg-white text-gray-700 border border-gray-300 px-8 py-4 rounded-xl text-lg font-semibold hover:border-gray-400 hover:shadow-lg transition-all duration-200 hover:scale-105"
-              >
-                Sign In
-              </Link>
+              {!authLoading && (
+                <>
+                  <button
+                    onClick={handleStartJobSearchClick}
+                    className="bg-orange-500 text-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-orange-600 transition-all duration-200 hover:scale-105 flex items-center space-x-2 shadow-lg"
+                  >
+                    <span>{user ? (hasCompletedCV ? 'Find Jobs' : 'Complete Setup') : 'Start Job Search'}</span>
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={handleSignInClick}
+                    className="bg-white text-gray-700 border border-gray-300 px-8 py-4 rounded-xl text-lg font-semibold hover:border-gray-400 hover:shadow-lg transition-all duration-200 hover:scale-105"
+                  >
+                    {user ? (hasCompletedCV ? 'Dashboard' : 'Continue Setup') : 'Sign In'}
+                  </button>
+                </>
+              )}
             </motion.div>
 
             {/* Stats */}
@@ -455,12 +500,12 @@ const LandingPage: React.FC = () => {
                   <span className="text-gray-700 text-sm">Basic application tracking</span>
                 </li>
               </ul>
-              <Link 
-                to="/seeker/login"
+              <button 
+                onClick={handleStartJobSearchClick}
                 className="w-full bg-gray-900 text-white py-3 px-4 rounded-xl hover:bg-gray-800 transition-colors font-medium text-center block text-sm"
               >
                 Get Started
-              </Link>
+              </button>
             </motion.div>
 
             <motion.div 
@@ -494,12 +539,12 @@ const LandingPage: React.FC = () => {
                   <span className="text-gray-700 text-sm">Priority support</span>
                 </li>
               </ul>
-              <Link 
-                to="/seeker/login"
+              <button 
+                onClick={handleStartJobSearchClick}
                 className="w-full bg-orange-500 text-white py-3 px-4 rounded-xl hover:bg-orange-600 transition-colors font-medium text-center block text-sm"
               >
                 Start Free Trial
-              </Link>
+              </button>
             </motion.div>
 
             <motion.div 
@@ -530,12 +575,12 @@ const LandingPage: React.FC = () => {
                   <span className="text-gray-700 text-sm">White-glove support</span>
                 </li>
               </ul>
-              <Link 
-                to="/seeker/login"
+              <button 
+                onClick={handleStartJobSearchClick}
                 className="w-full bg-gray-900 text-white py-3 px-4 rounded-xl hover:bg-gray-800 transition-colors font-medium text-center block text-sm"
               >
                 Contact Sales
-              </Link>
+              </button>
             </motion.div>
           </div>
         </div>
@@ -560,7 +605,7 @@ const LandingPage: React.FC = () => {
             <div>
               <h3 className="font-semibold mb-4">For Job Seekers</h3>
               <ul className="space-y-2 text-gray-400">
-                <li><Link to="/seeker/login" className="hover:text-white transition-colors">Find Jobs</Link></li>
+                <li><button onClick={handleStartJobSearchClick} className="hover:text-white transition-colors">Find Jobs</button></li>
                 <li><a href="#" className="hover:text-white transition-colors">Interview Coach</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Career Resources</a></li>
               </ul>
