@@ -39,10 +39,10 @@ const JobSeekerLogin: React.FC = () => {
       console.log('Redirecting user after login. hasCompletedCV:', hasCompletedCV);
       
       if (hasCompletedCV) {
-        // Returning user with CV - go to dashboard
+        // User has CV, go to dashboard
         navigate('/seeker/dashboard');
       } else {
-        // First time login or user without CV - go to welcome page
+        // First time login, go to welcome page
         navigate('/seeker/cv-welcome');
       }
     }
@@ -88,8 +88,70 @@ const JobSeekerLogin: React.FC = () => {
     return match ? parseInt(match[1], 10) : 60;
   };
 
+  const validateForm = () => {
+    // Clear previous errors
+    setLoginError('');
+
+    if (isLogin) {
+      // Login validation
+      if (!formData.email.trim()) {
+        setLoginError('Please enter your email address.');
+        return false;
+      }
+      if (!formData.password.trim()) {
+        setLoginError('Please enter your password.');
+        return false;
+      }
+      if (!formData.email.includes('@')) {
+        setLoginError('Please enter a valid email address.');
+        return false;
+      }
+    } else {
+      // Registration validation
+      if (!formData.firstName.trim()) {
+        setLoginError('Please enter your first name.');
+        return false;
+      }
+      if (!formData.lastName.trim()) {
+        setLoginError('Please enter your last name.');
+        return false;
+      }
+      if (!formData.email.trim()) {
+        setLoginError('Please enter your email address.');
+        return false;
+      }
+      if (!formData.email.includes('@')) {
+        setLoginError('Please enter a valid email address.');
+        return false;
+      }
+      if (!formData.password.trim()) {
+        setLoginError('Please enter a password.');
+        return false;
+      }
+      if (formData.password.length < 6) {
+        setLoginError('Password must be at least 6 characters long.');
+        return false;
+      }
+      if (!formData.confirmPassword.trim()) {
+        setLoginError('Please confirm your password.');
+        return false;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        setLoginError('Passwords do not match.');
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate form before proceeding
+    if (!validateForm()) {
+      return;
+    }
     
     if (rateLimitInfo.isRateLimited) {
       toast.error(`Please wait ${rateLimitInfo.waitTime} seconds before trying again.`);
@@ -103,7 +165,7 @@ const JobSeekerLogin: React.FC = () => {
     try {
       if (isLogin) {
         // Handle login
-        const { error } = await signIn(formData.email, formData.password);
+        const { error } = await signIn(formData.email.trim(), formData.password);
         
         if (error) {
           if (error.message?.includes('Invalid login credentials') || 
@@ -123,31 +185,13 @@ const JobSeekerLogin: React.FC = () => {
           return;
         }
         
-        // Show different success messages based on CV completion status
-        // Note: hasCompletedCV might not be updated yet, so we'll show a generic message
-        // The specific welcome will be handled by the destination page
-        if (hasCompletedCV) {
-          toast.success('Welcome back!');
-        } else {
-          toast.success('Welcome! Let\'s get your profile set up.');
-        }
-        
+        toast.success('Welcome back!');
         // Redirect will be handled by useEffect
       } else {
         // Handle registration - DO NOT navigate anywhere, just switch to login mode
-        if (formData.password !== formData.confirmPassword) {
-          toast.error('Passwords do not match');
-          return;
-        }
-
-        if (formData.password.length < 6) {
-          toast.error('Password must be at least 6 characters');
-          return;
-        }
-
-        const { error } = await signUp(formData.email, formData.password, {
-          first_name: formData.firstName,
-          last_name: formData.lastName,
+        const { error } = await signUp(formData.email.trim(), formData.password, {
+          first_name: formData.firstName.trim(),
+          last_name: formData.lastName.trim(),
           user_type: 'seeker'
         });
         
@@ -224,6 +268,22 @@ const JobSeekerLogin: React.FC = () => {
 
   const isLoadingState = loading || authLoading;
   const isFormDisabled = isLoadingState || rateLimitInfo.isRateLimited;
+
+  // Check if form is valid for enabling/disabling submit button
+  const isFormValid = () => {
+    if (isLogin) {
+      return formData.email.trim() && formData.password.trim() && formData.email.includes('@');
+    } else {
+      return formData.firstName.trim() && 
+             formData.lastName.trim() && 
+             formData.email.trim() && 
+             formData.email.includes('@') &&
+             formData.password.trim() && 
+             formData.password.length >= 6 &&
+             formData.confirmPassword.trim() &&
+             formData.password === formData.confirmPassword;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
@@ -312,12 +372,12 @@ const JobSeekerLogin: React.FC = () => {
               </motion.div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6" noValidate>
               {!isLogin && (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-2">
-                      First Name
+                      First Name *
                     </label>
                     <input
                       id="firstName"
@@ -333,7 +393,7 @@ const JobSeekerLogin: React.FC = () => {
                   </div>
                   <div>
                     <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-2">
-                      Last Name
+                      Last Name *
                     </label>
                     <input
                       id="lastName"
@@ -352,7 +412,7 @@ const JobSeekerLogin: React.FC = () => {
 
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Address
+                  Email Address *
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -378,7 +438,7 @@ const JobSeekerLogin: React.FC = () => {
 
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                  Password
+                  Password *
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -398,6 +458,7 @@ const JobSeekerLogin: React.FC = () => {
                         : 'border-gray-300'
                     }`}
                     placeholder="Enter your password"
+                    minLength={isLogin ? undefined : 6}
                   />
                   <button
                     type="button"
@@ -412,12 +473,15 @@ const JobSeekerLogin: React.FC = () => {
                     )}
                   </button>
                 </div>
+                {!isLogin && (
+                  <p className="mt-1 text-xs text-gray-500">Must be at least 6 characters</p>
+                )}
               </div>
 
               {!isLogin && (
                 <div>
                   <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                    Confirm Password
+                    Confirm Password *
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -460,7 +524,7 @@ const JobSeekerLogin: React.FC = () => {
 
               <button
                 type="submit"
-                disabled={isFormDisabled}
+                disabled={isFormDisabled || !isFormValid()}
                 className="w-full bg-orange-500 text-white py-2 px-4 rounded-lg hover:bg-orange-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoadingState ? (
